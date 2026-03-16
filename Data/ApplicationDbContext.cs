@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using AutoService.Models;
 
-namespace AutoService.Data
+namespace Service.Data;
 {
     public class ApplicationDbContext : IdentityDbContext
     {
