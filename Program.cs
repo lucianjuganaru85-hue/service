@@ -5,6 +5,7 @@ using Service.Data;
 using System.Globalization;
 using Microsoft.AspNetCore.Localization;
 using System.Runtime.InteropServices;
+using System.IO; // Aceasta este linia care lipsea!
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -15,12 +16,11 @@ cultureInfo.DateTimeFormat.FirstDayOfWeek = DayOfWeek.Monday;
 CultureInfo.DefaultThreadCurrentCulture = cultureInfo;
 CultureInfo.DefaultThreadCurrentUICulture = cultureInfo;
 
-// 2. CONFIGURARE BAZĂ DE DATE (Cale sigură pentru Azure)
-// Pe Azure, folderul AppData este cel mai sigur pentru scriere
+// 2. CONFIGURARE BAZĂ DE DATE (Cale sigură pentru Azure Windows)
 string dbPath;
 if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && Environment.GetEnvironmentVariable("WEBSITE_SITE_NAME") != null)
 {
-    // Suntem pe Azure Windows
+    // Suntem pe Azure Windows - folosim folderul de Log-uri unde avem permisiuni de scriere
     dbPath = Path.Combine(@"C:\home\LogFiles", "CroxService.db");
 }
 else
@@ -37,7 +37,7 @@ builder.Services.AddServerSideBlazor();
 
 var app = builder.Build();
 
-// 3. INIȚIALIZARE BAZĂ DE DATE (Fără să omorâm aplicația dacă eșuează)
+// 3. INIȚIALIZARE BAZĂ DE DATE
 using (var scope = app.Services.CreateScope())
 {
     try
@@ -47,8 +47,7 @@ using (var scope = app.Services.CreateScope())
     }
     catch (Exception ex)
     {
-        // Dacă eșuează, aplicația tot pornește, dar vom vedea eroarea în Log Stream
-        Console.WriteLine($"[DB ERROR] Nu s-a putut crea baza de date: {ex.Message}");
+        Console.WriteLine($"[DB ERROR] {ex.Message}");
     }
 }
 
