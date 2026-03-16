@@ -9,35 +9,34 @@ using System.IO;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. CONFIGURARE CALENDAR ROMÂNĂ (Luni, zz.ll.aaaa)
+// 1. CONFIGURARE CALENDAR ROMÂNĂ
 var cultureInfo = new CultureInfo("ro-RO");
 cultureInfo.DateTimeFormat.ShortDatePattern = "dd.MM.yyyy";
 cultureInfo.DateTimeFormat.FirstDayOfWeek = DayOfWeek.Monday;
 CultureInfo.DefaultThreadCurrentCulture = cultureInfo;
 CultureInfo.DefaultThreadCurrentUICulture = cultureInfo;
 
-// 2. CALEA BAZEI DE DATE (Azure & Local)
+// 2. CONFIGURARE BAZĂ DE DATE (Azure & Local)
 string dbPath;
 if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && Environment.GetEnvironmentVariable("WEBSITE_SITE_NAME") != null)
 {
-    // Pe Azure scriem într-un loc cu permisiuni garantate
     dbPath = @"C:\home\CroxService.db";
 }
 else
 {
-    // Pe calculatorul tău (Desktop)
     dbPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "CroxService.db");
 }
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlite($"Data Source={dbPath}"));
 
-builder.Services.AddRazorPages();
-builder.Services.AddServerSideBlazor();
+// 3. ADĂUGARE COMPONENTE RAZOR (Noul mod .NET 10)
+builder.Services.AddRazorComponents()
+    .AddInteractiveServerComponents();
 
 var app = builder.Build();
 
-// 3. CREARE AUTOMATĂ BAZĂ DE DATE
+// 4. CREARE AUTOMATĂ BAZĂ DE DATE
 using (var scope = app.Services.CreateScope())
 {
     try {
@@ -55,14 +54,15 @@ app.UseRequestLocalization(new RequestLocalizationOptions {
 });
 
 if (!app.Environment.IsDevelopment()) {
-    app.UseExceptionHandler("/Error");
+    app.UseExceptionHandler("/Error", createScopeForErrors: true);
     app.UseHsts();
 }
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();
-app.UseRouting();
-app.MapBlazorHub();
-app.MapFallbackToPage("/_Host");
+app.UseAntiforgery(); // Necesar pentru Blazor Web App
+
+app.MapRazorComponents<AutoService.Pages.App>() // Spunem că ușa e App.razor din folderul Pages
+    .AddInteractiveServerRenderMode();
 
 app.Run();
