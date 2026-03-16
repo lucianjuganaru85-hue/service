@@ -1,0 +1,57 @@
+/* /Components/Layout/MainLayout.razor.rz.scp.css */
+.page[b-l0pweids4m] {
+    position: relative;
+    display: flex;
+    flex-direction: row;
+}
+
+main[b-l0pweids4m] {
+    flex: 1;
+    background-color: #f0f2f5; /* Fundal discret pentru a scoate cardurile în evidență */
+    min-height: 100vh;
+}
+
+.sidebar[b-l0pweids4m] {
+    background-color: #0f172a; /* Bleumarin închis profesional */
+    width: 280px;
+    height: 100vh;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+}
+
+.top-row[b-l0pweids4m] {
+    height: 3.5rem;
+    z-index: 999;
+}
+
+.content[b-l0pweids4m] {
+    padding-top: 1rem;
+}
+
+/* Stiluri Link-uri Meniu */
+[b-l0pweids4m] .nav-link {
+    color: #94a3b8;
+    padding: 0.8rem 1.2rem;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 1.05rem;
+    transition: all 0.3s ease;
+}
+
+[b-l0pweids4m] .nav-link:hover {
+    background-color: rgba(255,255,255,0.05);
+    color: #f8fafc;
+}
+
+[b-l0pweids4m] .nav-link.active {
+    background-color: #2563eb;
+    color: white;
+    font-weight: 600;
+}
+
+/* Iconițe */
+[b-l0pweids4m] .bi {
+    font-size: 1.2rem;
+}

@@ -1,0 +1,69 @@
+@page "/editare-client/{Id:int}"
+@using AutoService.Data
+@using AutoService.Models
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>Editare Client - Crox ERP</PageTitle>
+
+<div class="container mt-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="text-primary fw-bold mb-0">✏️ Editează Client</h2>
+        <a href="/clienti" class="btn btn-outline-secondary">Înapoi</a>
+    </div>
+
+    @if (client == null)
+    {
+        <p>Se încarcă datele clientului...</p>
+    }
+    else
+    {
+        <EditForm Model="client" OnValidSubmit="SalveazaClient" FormName="EditClientForm">
+            <DataAnnotationsValidator />
+            <div class="card shadow-lg border-0 rounded-4 p-4">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Prenume</label>
+                        <InputText @bind-Value="client.FirstName" class="form-control" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Nume</label>
+                        <InputText @bind-Value="client.LastName" class="form-control" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Telefon</label>
+                        <InputText @bind-Value="client.PhoneNumber" class="form-control" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Email</label>
+                        <InputText @bind-Value="client.Email" class="form-control" />
+                    </div>
+                </div>
+                <div class="text-center mt-4">
+                    <button type="submit" class="btn btn-primary btn-lg px-5 fw-bold shadow">Actualizează Client</button>
+                </div>
+            </div>
+        </EditForm>
+    }
+</div>
+
+@code {
+    [Parameter] public int Id { get; set; }
+    private Client? client;
+
+    protected override async Task OnInitializedAsync()
+    {
+        client = await DbContext.Clients.FindAsync(Id);
+    }
+
+    private async Task SalveazaClient()
+    {
+        if (client != null)
+        {
+            await DbContext.SaveChangesAsync();
+            Navigation.NavigateTo("/clienti");
+        }
+    }
+}

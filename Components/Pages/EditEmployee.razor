@@ -1,0 +1,67 @@
+@page "/editare-angajat/{Id:int}"
+@using AutoService.Data
+@using AutoService.Models
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>Editare Angajat - Crox ERP</PageTitle>
+
+<div class="container mt-5">
+    <h2 class="text-primary fw-bold mb-4">✏️ Editează Angajat</h2>
+
+    @if (angajat == null)
+    {
+        <p>Se încarcă datele...</p>
+    }
+    else
+    {
+        <EditForm Model="angajat" OnValidSubmit="SalveazaAngajat" FormName="EditEmpForm">
+            <DataAnnotationsValidator />
+            <div class="card shadow-lg border-0 rounded-4 p-4">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Prenume</label>
+                        <InputText @bind-Value="angajat.FirstName" class="form-control" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Nume</label>
+                        <InputText @bind-Value="angajat.LastName" class="form-control" />
+                    </div>
+                    <div class="col-md-12">
+                        <label class="form-label fw-bold">Specializare</label>
+                        <InputText @bind-Value="angajat.Specialization" class="form-control" />
+                    </div>
+                    <div class="col-md-12">
+                        <label class="form-label fw-bold">Telefon</label>
+                        <InputText @bind-Value="angajat.PhoneNumber" class="form-control" />
+                    </div>
+                </div>
+                <div class="text-center mt-4">
+                    <button type="submit" class="btn btn-primary btn-lg px-5 fw-bold shadow">Actualizează Angajat</button>
+                    <a href="/angajati" class="btn btn-outline-secondary btn-lg ms-2">Înapoi</a>
+                </div>
+            </div>
+        </EditForm>
+    }
+</div>
+
+@code {
+    [Parameter] public int Id { get; set; }
+    private Employee? angajat;
+
+    protected override async Task OnInitializedAsync()
+    {
+        angajat = await DbContext.Employees.FindAsync(Id);
+    }
+
+    private async Task SalveazaAngajat()
+    {
+        if (angajat != null)
+        {
+            await DbContext.SaveChangesAsync();
+            Navigation.NavigateTo("/angajati");
+        }
+    }
+}

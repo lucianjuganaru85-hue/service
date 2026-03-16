@@ -1,0 +1,115 @@
+@page "/agenda-angajat/{EmployeeId:int}"
+@using AutoService.Data
+@using AutoService.Models
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@rendermode InteractiveServer
+
+<div class="container mt-5">
+    @if (angajat == null)
+    {
+        <div class="text-center py-5"><div class="spinner-border text-warning"></div></div>
+    }
+    else
+    {
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2 class="text-primary fw-bold mb-0">👨‍🔧 Agenda: @angajat.FirstName @angajat.LastName</h2>
+                <span class="badge bg-info text-dark">Specializare: @angajat.Specialization</span>
+            </div>
+            <div class="d-flex gap-2">
+                @* Buton pentru alocare rapidă: trimite ID-ul mecanicului către pagina de programare nouă *@
+                <button class="btn btn-success fw-bold shadow-sm" @onclick="AlocaLucrareNoua">➕ Alocă Lucrare Nouă</button>
+                <a href="/angajati" class="btn btn-outline-secondary">Înapoi la Echipă</a>
+            </div>
+        </div>
+
+        <div class="card shadow border-0 rounded-4">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0 text-center">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="ps-4 text-start">Data & Oră</th>
+                            <th>Vehicul</th>
+                            <th>Status</th>
+                            <th>Problema Reclamată</th>
+                            <th>Acțiuni</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (!programari.Any())
+                        {
+                            <tr><td colspan="5" class="py-5 text-muted">Acest angajat nu are nicio lucrare alocată momentan.</td></tr>
+                        }
+                        else
+                        {
+                            @foreach (var appt in programari)
+                            {
+                                <tr>
+                                    <td class="ps-4 text-start fw-bold">@appt.ScheduledDate.ToString("dd.MM HH:mm")</td>
+                                    <td>
+                                        <div class="fw-bold text-primary">@appt.Car?.LicensePlate</div>
+                                        <div class="small text-muted">@appt.Car?.Brand @appt.Car?.Model</div>
+                                    </td>
+                                    <td>
+                                        <span class="badge @(appt.Status == "Finalizată" ? "bg-success" : "bg-warning text-dark")">@appt.Status</span>
+                                    </td>
+                                    <td class="small text-truncate" style="max-width: 200px;">@appt.Description</td>
+                                    <td>
+                                        <div class="btn-group shadow-sm">
+                                            <a href="/deviz/@appt.Id" class="btn btn-sm btn-success">📑 Deviz</a>
+                                            <a href="/editare-programare/@appt.Id" class="btn btn-sm btn-outline-warning">✏️</a>
+                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => Sterge(appt.Id)">🗑️</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public int EmployeeId { get; set; }
+    private Employee? angajat;
+    private List<Appointment> programari = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        angajat = await DbContext.Employees.FindAsync(EmployeeId);
+        await IncarcaProgramari();
+    }
+
+    private async Task IncarcaProgramari()
+    {
+        programari = await DbContext.Appointments
+            .Include(a => a.Car)
+            .Where(a => a.AssignedMechanicId == EmployeeId)
+            .OrderBy(a => a.ScheduledDate)
+            .ToListAsync();
+    }
+
+    private void AlocaLucrareNoua()
+    {
+        // Trimitem ID-ul angajatului ca Query Parameter
+        Navigation.NavigateTo($"/programare-noua?mecanicId={EmployeeId}");
+    }
+
+    private async Task Sterge(int id)
+    {
+        if (await JS.InvokeAsync<bool>("confirm", "Crox, scoți lucrarea din agenda angajatului?"))
+        {
+            var a = await DbContext.Appointments.FindAsync(id);
+            if (a != null) {
+                DbContext.Appointments.Remove(a);
+                await DbContext.SaveChangesAsync();
+                await IncarcaProgramari();
+            }
+        }
+    }
+}

@@ -1,0 +1,106 @@
+@page "/detalii-masina/{Id:int}"
+@using AutoService.Data
+@using AutoService.Models
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>Detalii Vehicul - Crox ERP</PageTitle>
+
+<div class="container-fluid mt-3">
+    @if (car == null)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="mt-2 text-muted">Se încarcă datele vehiculului...</p>
+        </div>
+    }
+    else
+    {
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <h4 class="fw-bold mb-0 text-primary">🚗 @car.LicensePlate.ToUpper()</h4>
+                <p class="text-muted small mb-0">@car.Brand @car.Model (@car.Year)</p>
+            </div>
+            <div class="btn-group shadow-sm">
+                <button class="btn btn-sm btn-outline-primary" @onclick='() => Navigation.NavigateTo($"/editare-masina/{car.Id}")'>✏️ Editează</button>
+                <button class="btn btn-sm btn-outline-secondary" @onclick='() => Navigation.NavigateTo("/masini")'>🔙 Lista</button>
+            </div>
+        </div>
+
+        <div class="row g-3">
+            <div class="col-md-4">
+                <div class="card shadow-sm border-0 h-100">
+                    <div class="card-body">
+                        <h6 class="fw-bold border-bottom pb-2 mb-3">🛠️ Specificații Tehnice</h6>
+                        <table class="table table-sm table-borderless small mb-0">
+                            <tbody>
+                                <tr><td class="text-muted">Serie Șasiu (VIN):</td><td class="fw-bold text-end">@car.VIN</td></tr>
+                                <tr><td class="text-muted">An Fabricație:</td><td class="fw-bold text-end">@car.Year</td></tr>
+                                <tr><td class="text-muted">Kilometraj:</td><td class="fw-bold text-end text-primary">@car.CurrentMileage km</td></tr>
+                                <tr><td class="text-muted">Motor:</td><td class="fw-bold text-end">@car.EngineCapacity cmc | @car.HorsePower CP</td></tr>
+                                <tr><td class="text-muted">Combustibil:</td><td class="fw-bold text-end">@car.FuelType</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-8">
+                <div class="card shadow-sm border-0 h-100">
+                    <div class="card-header bg-dark text-white py-2">
+                        <h6 class="fw-bold mb-0 small">📅 Istoric Intervenții</h6>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover mb-0 align-middle text-center small">
+                                <thead class="bg-light">
+                                    <tr>
+                                        <th>Data</th>
+                                        <th>Descriere Lucrare</th>
+                                        <th>Status</th>
+                                        <th class="text-end pe-3">Detalii</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @if (car.Appointments == null || !car.Appointments.Any())
+                                    {
+                                        <tr><td colspan="4" class="py-3 text-muted">Nicio intervenție înregistrată.</td></tr>
+                                    }
+                                    else
+                                    {
+                                        @foreach (var app in car.Appointments.OrderByDescending(a => a.ScheduledDate))
+                                        {
+                                            <tr>
+                                                <td>@app.ScheduledDate.ToString("dd.MM.yyyy")</td>
+                                                <td class="text-start">@app.Description</td>
+                                                <td><span class="badge bg-success rounded-pill">@app.Status</span></td>
+                                                <td class="text-end pe-3">
+                                                    <button class="btn btn-xs btn-outline-dark" @onclick='() => Navigation.NavigateTo($"/deviz/{app.Id}")'>📄 Deviz</button>
+                                                </td>
+                                            </tr>
+                                        }
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public int Id { get; set; }
+    private Car? car;
+
+    protected override async Task OnInitializedAsync()
+    {
+        car = await DbContext.Cars
+            .Include(c => c.Client)
+            .Include(c => c.Appointments)
+            .FirstOrDefaultAsync(c => c.Id == Id);
+    }
+}

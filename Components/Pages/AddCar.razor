@@ -1,0 +1,77 @@
+@page "/adauga-masina"
+@using AutoService.Data
+@using AutoService.Models
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>Adaugă Mașină - Crox ERP</PageTitle>
+
+<div class="container mt-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="text-success fw-bold mb-0">➕ Adaugă Mașină Nouă</h2>
+        <a href="/masini" class="btn btn-outline-secondary shadow-sm">Înapoi la Listă</a>
+    </div>
+    
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <EditForm Model="nouaMasina" OnValidSubmit="SalveazaMasina" FormName="AddCarForm">
+                <DataAnnotationsValidator />
+                <div class="card shadow-lg border-0 rounded-4 p-4">
+                    <div class="row g-3">
+                        <div class="col-md-12">
+                            <label class="form-label fw-bold small">Selectează Proprietar (Client)</label>
+                            <InputSelect @bind-Value="nouaMasina!.ClientId" class="form-select shadow-sm">
+                                <option value="0">-- Alege Client --</option>
+                                @foreach (var client in listaClienti)
+                                {
+                                    <option value="@client.Id">@client.FirstName @client.LastName</option>
+                                }
+                            </InputSelect>
+                            <ValidationMessage For="@(() => nouaMasina!.ClientId)" class="text-danger small" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small">Nr. Înmatriculare</label>
+                            <InputText @bind-Value="nouaMasina!.LicensePlate" class="form-control text-uppercase shadow-sm" />
+                            <ValidationMessage For="@(() => nouaMasina!.LicensePlate)" class="text-danger small" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small">VIN (Serie Șasiu)</label>
+                            <InputText @bind-Value="nouaMasina!.VIN" class="form-control text-uppercase shadow-sm" maxlength="17" />
+                            <ValidationMessage For="@(() => nouaMasina!.VIN)" class="text-danger small" />
+                        </div>
+                    </div>
+                    <div class="mt-4 text-center">
+                        <button type="submit" class="btn btn-success btn-lg px-5 fw-bold shadow">
+                            🚗 Salvează Mașina
+                        </button>
+                    </div>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromForm(Name = "AddCarForm")]
+    public Car? nouaMasina { get; set; }
+
+    private List<Client> listaClienti = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Fix BL0008
+        nouaMasina ??= new();
+        listaClienti = await DbContext.Clients.OrderBy(c => c.LastName).ToListAsync();
+    }
+
+    private async Task SalveazaMasina()
+    {
+        if (nouaMasina == null || nouaMasina.ClientId == 0) return;
+
+        DbContext.Cars.Add(nouaMasina);
+        await DbContext.SaveChangesAsync();
+        Navigation.NavigateTo("/masini");
+    }
+}

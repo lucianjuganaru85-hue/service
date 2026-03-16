@@ -1,0 +1,139 @@
+@page "/receptie-rapida"
+@using AutoService.Data
+@using AutoService.Models
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@rendermode InteractiveServer
+
+<PageTitle>Recepție Rapidă - Crox ERP</PageTitle>
+
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4 class="fw-bold text-dark mb-0">⚡ Recepție Rapidă</h4>
+        <a href="/" class="btn btn-sm btn-outline-secondary shadow-sm">🏠 Acasă</a>
+    </div>
+
+    <EditForm Model="tempData" OnValidSubmit="SalveazaTot">
+        <DataAnnotationsValidator />
+        <div class="card shadow-sm border-0 rounded-3 overflow-hidden">
+            <div class="card-body p-4">
+                <div class="row g-4">
+                    @* CLIENT *@
+                    <div class="col-md-6 border-end px-4">
+                        <h6 class="fw-bold text-primary mb-3 border-bottom pb-2">👤 DATE CLIENT</h6>
+                        <div class="row g-2 mb-2">
+                            <div class="col-6">
+                                <label class="small fw-bold">Prenume</label>
+                                <input type="text" class="form-control form-control-sm" @bind="tempData.FirstName" required />
+                            </div>
+                            <div class="col-6">
+                                <label class="small fw-bold">Nume</label>
+                                <input type="text" class="form-control form-control-sm" @bind="tempData.LastName" required />
+                            </div>
+                        </div>
+                        <label class="small fw-bold">Telefon</label>
+                        <input type="text" class="form-control form-control-sm" @bind="tempData.Phone" required />
+                    </div>
+
+                    @* MAȘINĂ *@
+                    <div class="col-md-6 px-4">
+                        <h6 class="fw-bold text-success mb-3 border-bottom pb-2">🚗 DATE VEHICUL</h6>
+                        <label class="small fw-bold">Nr. Înmatriculare</label>
+                        <input type="text" class="form-control form-control-sm fw-bold text-uppercase mb-2" @bind="tempData.Plate" required />
+                        <div class="row g-2 mb-2">
+                            <div class="col-6">
+                                <label class="small fw-bold">Marcă</label>
+                                <input type="text" class="form-control form-control-sm" @bind="tempData.Brand" />
+                            </div>
+                            <div class="col-6">
+                                <label class="small fw-bold">Model</label>
+                                <input type="text" class="form-control form-control-sm" @bind="tempData.Model" />
+                            </div>
+                        </div>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <label class="small fw-bold">An</label>
+                                <input type="number" class="form-control form-control-sm" @bind="tempData.Year" />
+                            </div>
+                            <div class="col-6">
+                                <label class="small fw-bold">KM</label>
+                                <input type="number" class="form-control form-control-sm" @bind="tempData.Mileage" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <hr class="my-4" />
+
+                <div class="mb-3">
+                    <label class="small fw-bold text-danger">🛠️ MOTIV INTRARE</label>
+                    <textarea class="form-control form-control-sm" @bind="tempData.Issue" rows="2" required placeholder="Ce problemă are mașina?"></textarea>
+                </div>
+
+                <button type="submit" class="btn btn-primary w-100 fw-bold py-2 shadow">🚀 DESCHIDE DEVIZ ACUM</button>
+            </div>
+        </div>
+    </EditForm>
+</div>
+
+@code {
+    private QuickTempData tempData = new() { Year = DateTime.Now.Year };
+
+    private async Task SalveazaTot()
+    {
+        try
+        {
+            var client = new Client { 
+                FirstName = tempData.FirstName, 
+                LastName = tempData.LastName, 
+                PhoneNumber = tempData.Phone,
+                CreatedAt = DateTime.SpecifyKind(DateTime.Now, DateTimeKind.Utc)
+            };
+            DbContext.Clients.Add(client);
+            await DbContext.SaveChangesAsync();
+
+            var car = new Car { 
+                LicensePlate = tempData.Plate.ToUpper(), 
+                Brand = tempData.Brand, 
+                Model = tempData.Model, 
+                Year = tempData.Year,
+                CurrentMileage = tempData.Mileage,
+                ClientId = client.Id,
+                IsDeleted = false
+            };
+            DbContext.Cars.Add(car);
+            await DbContext.SaveChangesAsync();
+
+            var appt = new Appointment { 
+                CarId = car.Id, 
+                Description = tempData.Issue, 
+                ScheduledDate = DateTime.SpecifyKind(DateTime.Now, DateTimeKind.Utc), 
+                Status = "Nouă",
+                IsDeleted = false
+            };
+            DbContext.Appointments.Add(appt);
+            await DbContext.SaveChangesAsync();
+
+            Navigation.NavigateTo($"/deviz/{appt.Id}");
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", "Eroare: " + ex.Message);
+        }
+    }
+
+    public class QuickTempData
+    {
+        public string FirstName { get; set; } = "";
+        public string LastName { get; set; } = "";
+        public string Phone { get; set; } = "";
+        public string Plate { get; set; } = "";
+        public string Brand { get; set; } = "";
+        public string Model { get; set; } = "";
+        public int Year { get; set; } // Proprietatea care lipsea
+        public int Mileage { get; set; } // Proprietatea care lipsea
+        public string Issue { get; set; } = "";
+    }
+}

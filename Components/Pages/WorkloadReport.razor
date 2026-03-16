@@ -1,0 +1,76 @@
+@page "/raport-incarcare"
+@using AutoService.Data
+@using AutoService.Models
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
+@rendermode InteractiveServer
+
+<div class="container mt-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="text-primary fw-bold">📊 Încărcare Reală Echipă</h2>
+        <a href="/" class="btn btn-outline-secondary">🏠 Acasă</a>
+    </div>
+
+    <div class="row g-4">
+        @foreach (var item in dateIncarcare)
+        {
+            <div class="col-md-6">
+                <div class="card border-0 shadow-sm rounded-4 p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h4 class="fw-bold mb-0">@item.NumeAngajat</h4>
+                        <span class="badge @(item.ProcentIncarcare > 90 ? "bg-danger" : "bg-success")">
+                            @item.OreOcupate.ToString("0.0") h / 13h
+                        </span>
+                    </div>
+
+                    <div class="progress rounded-pill mb-2" style="height: 20px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated @GetColor(item.ProcentIncarcare)" 
+                             style="width: @(item.ProcentIncarcare > 100 ? 100 : item.ProcentIncarcare)%">
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between small text-muted">
+                        <span>Eficienta: @item.ProcentIncarcare.ToString("0")%</span>
+                        <span>@item.NumarLucrari mașini în lucru</span>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private List<WorkloadVM> dateIncarcare = new();
+
+    protected override async Task OnInitializedAsync() {
+        var angajati = await DbContext.Employees.ToListAsync();
+        var programariAzi = await DbContext.Appointments
+            .Include(a => a.ServiceItems) // Tragem și orele din piese/manoperă
+            .Where(a => a.ScheduledDate.Date == DateTime.Today)
+            .ToListAsync();
+
+        dateIncarcare = angajati.Select(e => {
+            var lucrariMecanic = programariAzi.Where(a => a.AssignedMechanicId == e.Id).ToList();
+            
+            // Calculăm suma orelor reale introduse pe devize
+            double oreTotale = lucrariMecanic.Sum(l => l.ServiceItems?.Sum(si => si.EstimatedHours) ?? 1.0); 
+            // Am pus un fallback de 1.0h dacă nu ai adăugat piese încă
+
+            return new WorkloadVM {
+                NumeAngajat = $"{e.FirstName} {e.LastName}",
+                NumarLucrari = lucrariMecanic.Count,
+                OreOcupate = oreTotale,
+                ProcentIncarcare = (oreTotale / 13.0) * 100
+            };
+        }).ToList();
+    }
+
+    private string GetColor(double p) => p > 90 ? "bg-danger" : (p > 60 ? "bg-warning" : "bg-success");
+
+    public class WorkloadVM {
+        public string NumeAngajat { get; set; } = "";
+        public int NumarLucrari { get; set; }
+        public double OreOcupate { get; set; }
+        public double ProcentIncarcare { get; set; }
+    }
+}

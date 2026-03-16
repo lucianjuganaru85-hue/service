@@ -1,0 +1,283 @@
+@page "/programari"
+@using AutoService.Data
+@using AutoService.Models
+@using Microsoft.EntityFrameworkCore
+@using System.Globalization
+@inject ApplicationDbContext DbContext
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>Agendă Service - Crox ERP</PageTitle>
+
+<div class="container-fluid mt-3">
+    @* ANTET *@
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h4 class="fw-bold text-dark mb-0">🗓️ Agendă Service</h4>
+            <p class="text-muted small mb-0">Gestionare flux și istoric intervenții</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="/programare-noua" class="btn btn-sm btn-primary fw-bold shadow-sm">➕ Programare Nouă</a>
+            <a href="/" class="btn btn-sm btn-dark shadow-sm">🏠 Acasă</a>
+        </div>
+    </div>
+
+    @* NAVIGARE TAB-URI *@
+    <ul class="nav nav-tabs mb-3 border-bottom-0">
+        <li class="nav-item">
+            <button class="nav-link @(activeTab == "active" ? "active fw-bold border-bottom-0 shadow-sm" : "text-muted")" 
+                    @onclick='() => SetTab("active")'>🛠️ Lucrări Active</button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link @(activeTab == "finalized" ? "active fw-bold border-bottom-0 shadow-sm" : "text-muted")" 
+                    @onclick='() => SetTab("finalized")'>✅ Finalizate / Arhivă</button>
+        </li>
+    </ul>
+
+    @* FILTRU CĂUTARE *@
+    <div class="row g-2 mb-3">
+        <div class="col-md-6">
+            <input type="text" class="form-control form-control-sm shadow-sm" 
+                   placeholder="Caută mașină, client sau mecanic..." 
+                   @bind="searchTerm" @bind:event="oninput" />
+        </div>
+    </div>
+
+    @* TABEL AGENDĂ *@
+    <div class="card shadow border-0 rounded-3 overflow-hidden">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0 text-center" style="font-size: 0.8rem;">
+                <thead class="bg-dark text-white">
+                    <tr>
+                        <th class="ps-3 text-start" style="width: 130px;">Data & Ziua</th>
+                        <th style="width: 70px;">Ora</th>
+                        <th style="width: 100px;">Mașină</th>
+                        <th style="width: 120px;">Client</th>
+                        <th class="text-start">Probleme/Constatări</th>
+                        <th>Mecanic Alocat</th>
+                        <th>Status</th>
+                        <th class="pe-3 text-end">Acțiuni</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (listaFiltrata == null) {
+                        <tr><td colspan="8" class="py-4 text-muted small">Se încarcă agenda...</td></tr>
+                    } else if (!listaFiltrata.Any()) {
+                        <tr><td colspan="8" class="py-4 text-muted italic small">Nicio înregistrare găsită.</td></tr>
+                    } else {
+                        @foreach (var p in listaFiltrata) {
+                            var culturaRo = new CultureInfo("ro-RO");
+                            var totalOre = p.ServiceItems?.Any() == true ? (double)p.ServiceItems.Sum(i => i.EstimatedHours) : 1.0;
+                            var estimareFinal = p.ScheduledDate.AddHours(totalOre);
+                            bool eIntarziere = p.Status == "În Lucru" && DateTime.Now > estimareFinal && activeTab == "active";
+
+                            <tr class="@(eIntarziere ? "table-danger-light" : "")">
+                                <td class="ps-3 text-start">
+                                    <div class="fw-bold">@p.ScheduledDate.ToString("dd.MM.yyyy")</div>
+                                    <div class="text-primary small text-capitalize" style="font-size: 0.7rem;">@p.ScheduledDate.ToString("dddd", culturaRo)</div>
+                                </td>
+                                <td class="fw-bold text-dark">@p.ScheduledDate.ToString("HH:mm")</td>
+                                <td class="fw-bold">@p.Car?.LicensePlate</td>
+                                <td class="small">@p.Car?.Client?.FirstName @p.Car?.Client?.LastName</td>
+                                <td class="text-start ps-2">
+                                    <div class="text-truncate" style="max-width: 200px;" title="Sesizări: @p.ClientIssues | Constatare: @p.MechanicFindings">
+                                        <span class="text-danger">●</span> @(string.IsNullOrEmpty(p.ClientIssues) ? (string.IsNullOrEmpty(p.Description) ? "-" : p.Description) : p.ClientIssues)
+                                        <br />
+                                        <span class="text-success">●</span> @(string.IsNullOrEmpty(p.MechanicFindings) ? "-" : p.MechanicFindings)
+                                    </div>
+                                </td>
+                                <td class="fw-bold">
+                                    @(p.AssignedMechanic != null ? $"{p.AssignedMechanic.FirstName} {p.AssignedMechanic.LastName}" : "Nealocat")
+                                </td>
+                                <td>
+                                    @if (eIntarziere) {
+                                        <span class="badge bg-danger rounded-pill pulse-warning" style="font-size: 0.65rem;">🚨 DEPĂȘIT</span>
+                                    } else {
+                                        <span class="badge @GetStatusColor(p.Status) rounded-pill" style="font-size: 0.65rem;">@p.Status</span>
+                                    }
+                                </td>
+                                <td class="pe-3 text-end">
+                                    <div class="btn-group shadow-sm">
+                                        <button class="btn btn-xs btn-success" @onclick='() => Navigation.NavigateTo($"/deviz/{p.Id}")' title="Deviz">📑</button>
+                                        <button class="btn btn-xs btn-outline-info" @onclick="() => DeschideNoteRapide(p)" title="Note rapide">📝</button>
+                                        <button class="btn btn-xs btn-outline-primary" @onclick="() => DeschideEditare(p)" title="Editează">✏️</button>
+                                        <button class="btn btn-xs btn-outline-dark" @onclick="() => StergeProgramare(p)" title="Șterge">🗑️</button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@* MODAL EDITARE COMPLETĂ *@
+@if (isEditModalOpen && editingAppt != null)
+{
+    <div class="custom-modal-backdrop" @onclick="() => isEditModalOpen = false"></div>
+    <div class="custom-modal-content shadow-lg p-4 animate__animated animate__fadeInDown" style="width: 600px;">
+        <h5 class="fw-bold mb-3 border-bottom pb-2 text-primary">✏️ Modificare Programare: @editingAppt.Car?.LicensePlate</h5>
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="small fw-bold">DATA ȘI ORA</label>
+                <input type="datetime-local" class="form-control form-control-sm" @bind="editingAppt.ScheduledDate" />
+            </div>
+            <div class="col-md-6">
+                <label class="small fw-bold">STATUS</label>
+                <select class="form-select form-select-sm" @bind="editingAppt.Status">
+                    <option value="Programat">Programat</option>
+                    <option value="În Lucru">În Lucru</option>
+                    <option value="Finalizată">Finalizată</option>
+                    <option value="Anulată">Anulată</option>
+                </select>
+            </div>
+            <div class="col-md-12">
+                <label class="small fw-bold">MECANIC ALOCAT</label>
+                <select class="form-select form-select-sm" @bind="editingAppt.AssignedMechanicId">
+                    <option value="">-- Nealocat --</option>
+                    @if (listaMecanici != null) {
+                        @foreach (var m in listaMecanici) {
+                            <option value="@m.Id">@m.FirstName @m.LastName</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="col-md-12">
+                <label class="small fw-bold text-danger">⚠️ PROBLEME SESIZATE (CLIENT)</label>
+                <textarea class="form-control form-control-sm" rows="2" @bind="editingAppt.ClientIssues"></textarea>
+            </div>
+            <div class="col-md-12">
+                <label class="small fw-bold text-success">🔍 CONSTATARE TEHNICĂ (MECANIC)</label>
+                <textarea class="form-control form-control-sm" rows="2" @bind="editingAppt.MechanicFindings"></textarea>
+            </div>
+        </div>
+        <div class="d-flex justify-content-end gap-2 mt-4">
+            <button class="btn btn-secondary btn-sm" @onclick="() => isEditModalOpen = false">Anulează</button>
+            <button class="btn btn-primary btn-sm fw-bold px-4" @onclick="SalveazaEditare">💾 Salvează Modificările</button>
+        </div>
+    </div>
+}
+
+@* MODAL NOTE RAPIDE *@
+@if (isNoteModalOpen && selectedApptNote != null)
+{
+    <div class="custom-modal-backdrop" @onclick="() => isNoteModalOpen = false"></div>
+    <div class="custom-modal-content shadow-lg p-4 animate__animated animate__fadeInDown">
+        <h6 class="fw-bold mb-3 border-bottom pb-2 text-info">📝 Note Rapide: @selectedApptNote.Car?.LicensePlate</h6>
+        <div class="mb-3 text-start">
+            <label class="small fw-bold text-danger">⚠️ SESIZĂRI CLIENT</label>
+            <textarea class="form-control form-control-sm" rows="3" @bind="selectedApptNote.ClientIssues"></textarea>
+        </div>
+        <div class="mb-3 text-start">
+            <label class="small fw-bold text-success">🔍 CONSTATARE MECANIC</label>
+            <textarea class="form-control form-control-sm" rows="3" @bind="selectedApptNote.MechanicFindings"></textarea>
+        </div>
+        <div class="d-flex justify-content-end gap-2">
+            <button class="btn btn-secondary btn-sm" @onclick="() => isNoteModalOpen = false">Anulează</button>
+            <button class="btn btn-info btn-sm fw-bold text-white" @onclick="SalveazaNoteRapide">💾 Salvează Notele</button>
+        </div>
+    </div>
+}
+
+<style>
+    .nav-tabs .nav-link { border-radius: 10px 10px 0 0; margin-right: 5px; background: #f8f9fa; cursor: pointer; }
+    .nav-tabs .nav-link.active { background: white !important; border-top: 3px solid #0d6efd !important; }
+    .table-danger-light { background-color: rgba(220, 53, 69, 0.05) !important; }
+    .btn-xs { padding: 0.2rem 0.5rem; font-size: 0.75rem; }
+    .pulse-warning { animation: pulse-red 2s infinite; }
+    @@keyframes pulse-red { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+    .custom-modal-backdrop { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); z-index: 1000; }
+    .custom-modal-content { position: fixed; top: 15%; left: 50%; transform: translateX(-50%); width: 450px; background: white; border-radius: 15px; z-index: 1001; }
+</style>
+
+@code {
+    private List<Appointment>? listaProgramari;
+    private List<Employee>? listaMecanici;
+    private string searchTerm = "";
+    private string activeTab = "active";
+    
+    // Note Modal
+    private Appointment? selectedApptNote;
+    private bool isNoteModalOpen = false;
+    
+    // Edit Modal
+    private Appointment? editingAppt;
+    private bool isEditModalOpen = false;
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData() {
+        listaProgramari = await DbContext.Appointments
+            .Include(a => a.Car).ThenInclude(c => c.Client)
+            .Include(a => a.AssignedMechanic)
+            .Include(a => a.ServiceItems)
+            .Where(a => !a.IsDeleted)
+            .OrderBy(a => a.ScheduledDate)
+            .ToListAsync();
+
+        listaMecanici = await DbContext.Employees.Where(e => e.IsActive).ToListAsync();
+    }
+
+    private void SetTab(string tab) => activeTab = tab;
+
+    // Logică Note Rapide
+    private void DeschideNoteRapide(Appointment p) {
+        selectedApptNote = p;
+        isNoteModalOpen = true;
+    }
+    private async Task SalveazaNoteRapide() {
+        await DbContext.SaveChangesAsync();
+        isNoteModalOpen = false;
+        await LoadData();
+    }
+
+    // Logică Editare Completă
+    private void DeschideEditare(Appointment p) {
+        editingAppt = p;
+        isEditModalOpen = true;
+    }
+    private async Task SalveazaEditare() {
+        await DbContext.SaveChangesAsync();
+        isEditModalOpen = false;
+        await LoadData();
+    }
+
+    private IEnumerable<Appointment>? listaFiltrata {
+        get {
+            if (listaProgramari == null) return null;
+            var query = listaProgramari.AsEnumerable();
+            if (activeTab == "active") 
+                query = query.Where(a => a.Status != "Finalizată" && a.Status != "Anulată");
+            else 
+                query = query.Where(a => a.Status == "Finalizată" || a.Status == "Anulată");
+
+            if (!string.IsNullOrWhiteSpace(searchTerm)) {
+                query = query.Where(a => 
+                    (a.Car?.LicensePlate?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (a.Car?.Client?.LastName?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (a.AssignedMechanic?.LastName?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false)
+                );
+            }
+            return query.ToList();
+        }
+    }
+
+    private string GetStatusColor(string status) => status switch {
+        "În Lucru" => "bg-warning text-dark",
+        "Finalizată" => "bg-success",
+        "Anulată" => "bg-secondary",
+        _ => "bg-primary"
+    };
+
+    private async Task StergeProgramare(Appointment p) {
+        bool confirm = await JS.InvokeAsync<bool>("confirm", $"Ești sigur că vrei să ștergi programarea pentru {p.Car?.LicensePlate}?");
+        if (confirm) {
+            p.IsDeleted = true;
+            await DbContext.SaveChangesAsync();
+            await LoadData();
+        }
+    }
+}

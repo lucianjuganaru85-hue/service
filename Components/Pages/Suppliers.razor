@@ -1,0 +1,226 @@
+@page "/furnizori"
+@using AutoService.Data
+@using AutoService.Models
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>Furnizori - Crox ERP</PageTitle>
+
+<div class="container mt-4">
+    @* ANTET *@
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold text-dark mb-0">🚚 Gestiune Furnizori</h2>
+            <p class="text-muted small">Partenerii tăi pentru aprovizionarea cu piese și consumabile.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-primary fw-bold shadow-sm px-4" @onclick="PrepareAdd">
+                ➕ Furnizor Nou
+            </button>
+            <button class="btn btn-outline-secondary shadow-sm" @onclick='() => JS.InvokeVoidAsync("history.back")'>
+                ⬅️ Înapoi
+            </button>
+            <a href="/" class="btn btn-dark shadow-sm">🏠 Acasă</a>
+        </div>
+    </div>
+
+    @* FORMULAR ADĂUGARE / EDITARE (Apare doar la click) *@
+    @if (showForm)
+    {
+        <div class="card shadow-sm border-0 p-4 mb-4 rounded-4 bg-light animate__animated animate__fadeInDown">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="fw-bold mb-0">@(currentSupplier.Id == 0 ? "➕ Înregistrare Furnizor Nou" : "📝 Editare Furnizor")</h5>
+                <button class="btn-close" @onclick="CancelForm"></button>
+            </div>
+            
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="small fw-bold text-muted text-uppercase">Nume Firmă / Denumire</label>
+                    <input class="form-control border-primary" @bind="currentSupplier.Name" placeholder="ex: Autonet Import SRL" />
+                </div>
+                <div class="col-md-3">
+                    <label class="small fw-bold text-muted text-uppercase">CUI / Cod Fiscal</label>
+                    <input class="form-control" @bind="currentSupplier.CUI" placeholder="RO123456" />
+                </div>
+                <div class="col-md-3">
+                    <label class="small fw-bold text-muted text-uppercase">Telefon Contact</label>
+                    <input class="form-control" @bind="currentSupplier.PhoneNumber" placeholder="07xx xxx xxx" />
+                </div>
+                <div class="col-md-2 d-flex align-items-end gap-2">
+                    <button class="btn btn-success w-100 fw-bold shadow-sm" @onclick="SaveSupplier">
+                        💾 Salvează
+                    </button>
+                </div>
+            </div>
+            <div class="row g-3 mt-1">
+                <div class="col-md-6">
+                    <label class="small fw-bold text-muted text-uppercase">Persoană Contact / Email</label>
+                    <input class="form-control" @bind="currentSupplier.ContactPerson" placeholder="Nume agent sau adresa de email..." />
+                </div>
+            </div>
+        </div>
+    }
+
+    @* TABEL LISTĂ FURNIZORI *@
+    <div class="card shadow-lg border-0 rounded-4 overflow-hidden">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 text-center">
+                <thead class="bg-light text-muted small text-uppercase">
+                    <tr>
+                        <th class="ps-4 text-start">Nume Furnizor</th>
+                        <th>Identificare (CUI)</th>
+                        <th>Contact Telefon</th>
+                        <th>Activitate</th>
+                        <th>Acțiuni</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (listaFurnizori == null)
+                    {
+                        <tr><td colspan="5" class="py-5 text-muted italic">Se încarcă lista de parteneri...</td></tr>
+                    }
+                    else if (!listaFurnizori.Any())
+                    {
+                        <tr><td colspan="5" class="py-5 text-muted">Nu ai adăugat încă niciun furnizor. Folosește butonul de sus!</td></tr>
+                    }
+                    else
+                    {
+                        @foreach (var s in listaFurnizori)
+                        {
+                            <tr>
+                                <td class="ps-4 text-start">
+                                    <div class="fw-bold text-dark">@s.Name</div>
+                                    <div class="small text-muted">@s.ContactPerson</div>
+                                </td>
+                                <td><span class="badge bg-light text-dark border">@s.CUI</span></td>
+                                <td class="fw-bold">@s.PhoneNumber</td>
+                                <td>
+                                    @* Afișăm câte facturi am primit de la el *@
+                                    <span class="badge @(s.Invoices.Any() ? "bg-info" : "bg-secondary") rounded-pill px-3">
+                                        @s.Invoices.Count facturi înregistrate
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="btn-group shadow-sm">
+                                        <button class="btn btn-sm btn-outline-primary" @onclick="() => PrepareEdit(s)">✏️</button>
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteSupplier(s)">🗑️</button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    @* INFO FOOTER *@
+    <div class="mt-3 text-muted small italic">
+        * Furnizorii adăugați aici vor apărea automat în selectorul paginii de <b>Recepție Piese (NIR)</b>.
+    </div>
+</div>
+
+<style>
+    .table-hover tbody tr:hover { background-color: rgba(13, 110, 253, 0.03); transition: 0.2s; }
+    .animate__fadeInDown { animation-duration: 0.4s; }
+</style>
+
+@code {
+    private List<Supplier>? listaFurnizori;
+    private Supplier currentSupplier = new();
+    private bool showForm = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        // Includem si facturile ca sa putem numara activitatea furnizorului
+        listaFurnizori = await DbContext.Suppliers
+            .Include(s => s.Invoices)
+            .OrderBy(s => s.Name)
+            .ToListAsync();
+    }
+
+    private void PrepareAdd()
+    {
+        currentSupplier = new Supplier();
+        showForm = true;
+    }
+
+    private void PrepareEdit(Supplier s)
+    {
+        // Cream o copie pentru a nu modifica direct in lista pana la salvare
+        currentSupplier = new Supplier {
+            Id = s.Id,
+            Name = s.Name,
+            CUI = s.CUI,
+            PhoneNumber = s.PhoneNumber,
+            ContactPerson = s.ContactPerson,
+            Email = s.Email
+        };
+        showForm = true;
+    }
+
+    private void CancelForm()
+    {
+        showForm = false;
+        currentSupplier = new();
+    }
+
+    private async Task SaveSupplier()
+    {
+        if (string.IsNullOrWhiteSpace(currentSupplier.Name))
+        {
+            await JS.InvokeVoidAsync("alert", "Te rog introdu numele furnizorului!");
+            return;
+        }
+
+        if (currentSupplier.Id == 0)
+        {
+            // Adaugare
+            DbContext.Suppliers.Add(currentSupplier);
+        }
+        else
+        {
+            // Editare - cautam obiectul real si il actualizam
+            var entry = await DbContext.Suppliers.FindAsync(currentSupplier.Id);
+            if (entry != null)
+            {
+                entry.Name = currentSupplier.Name;
+                entry.CUI = currentSupplier.CUI;
+                entry.PhoneNumber = currentSupplier.PhoneNumber;
+                entry.ContactPerson = currentSupplier.ContactPerson;
+                entry.Email = currentSupplier.Email;
+            }
+        }
+
+        await DbContext.SaveChangesAsync();
+        showForm = false;
+        currentSupplier = new();
+        await LoadData();
+    }
+
+    private async Task DeleteSupplier(Supplier s)
+    {
+        // Verificam daca are facturi inainte de stergere (pentru a nu strica integritatea arhivei)
+        if (s.Invoices.Any())
+        {
+            await JS.InvokeVoidAsync("alert", $"Nu poți șterge '{s.Name}' deoarece are facturi înregistrate în sistem. Suspendă-i activitatea sau șterge mai întâi facturile aferente.");
+            return;
+        }
+
+        bool confirm = await JS.InvokeAsync<bool>("confirm", $"Sigur dorești să ștergi furnizorul '{s.Name}'?");
+        if (confirm)
+        {
+            DbContext.Suppliers.Remove(s);
+            await DbContext.SaveChangesAsync();
+            await LoadData();
+        }
+    }
+}

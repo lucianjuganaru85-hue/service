@@ -1,0 +1,53 @@
+@page "/detalii-angajat/{Id:int}"
+@using AutoService.Data
+@using AutoService.Models
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
+@rendermode InteractiveServer
+
+<div class="container mt-5">
+    @if (emp == null)
+    {
+        <p>Se încarcă...</p>
+    }
+    else
+    {
+        <div class="card shadow border-0 rounded-4 p-4">
+            <h2 class="fw-bold">@emp.FirstName @emp.LastName</h2>
+            <p class="text-muted">Membru din: @emp.CreatedAt.ToString("dd.MM.yyyy")</p>
+            <hr />
+            <div class="row">
+                <div class="col-md-4">
+                    <h5>Informații</h5>
+                    <p><b>Specializare:</b> @emp.Specialization</p>
+                    <p><b>Telefon:</b> @emp.PhoneNumber</p>
+                    <p><b>Status:</b> @(emp.IsActive ? "Activ" : "Inactiv")</p>
+                </div>
+                <div class="col-md-8">
+                    <h5>Istoric Activitate (@emp.AssignedAppointments.Count programări)</h5>
+                    <ul class="list-group">
+                        @foreach (var appt in emp.AssignedAppointments.OrderByDescending(a => a.ScheduledDate).Take(10))
+                        {
+                            <li class="list-group-item d-flex justify-content-between">
+                                <span>@appt.ScheduledDate.ToString("dd.MM.yyyy") - @appt.Status</span>
+                                <a href="/deviz/@appt.Id" class="btn btn-sm btn-link">Vezi Deviz</a>
+                            </li>
+                        }
+                    </ul>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public int Id { get; set; }
+    private Employee? emp;
+
+    protected override async Task OnInitializedAsync()
+    {
+        emp = await DbContext.Employees
+            .Include(e => e.AssignedAppointments)
+            .FirstOrDefaultAsync(e => e.Id == Id);
+    }
+}

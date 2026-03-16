@@ -1,0 +1,45 @@
+@page "/editare-masina/{Id:int}"
+@using AutoService.Data
+@using AutoService.Models
+@inject ApplicationDbContext DbContext
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<div class="container mt-4">
+    <h4 class="fw-bold mb-4">✏️ Editare Vehicul</h4>
+    @if (carToEdit != null)
+    {
+        <EditForm Model="carToEdit" OnValidSubmit="Salveaza">
+            <div class="card shadow-sm p-4">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="small fw-bold">An Fabricație</label>
+                        <input type="number" class="form-control form-control-sm" @bind="carToEdit.Year" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="small fw-bold">Kilometraj</label>
+                        <input type="number" class="form-control form-control-sm" @bind="carToEdit.CurrentMileage" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="small fw-bold">Putere (CP)</label>
+                        <input type="number" class="form-control form-control-sm" @bind="carToEdit.HorsePower" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="small fw-bold">Capacitate (cmc)</label>
+                        <input type="number" class="form-control form-control-sm" @bind="carToEdit.EngineCapacity" />
+                    </div>
+                </div>
+                <div class="mt-4 text-end">
+                    <button type="submit" class="btn btn-primary px-4 fw-bold">💾 Salvează</button>
+                </div>
+            </div>
+        </EditForm>
+    }
+</div>
+
+@code {
+    [Parameter] public int Id { get; set; }
+    private Car? carToEdit;
+    protected override async Task OnInitializedAsync() => carToEdit = await DbContext.Cars.FindAsync(Id);
+    private async Task Salveaza() { await DbContext.SaveChangesAsync(); Navigation.NavigateTo("/masini"); }
+}

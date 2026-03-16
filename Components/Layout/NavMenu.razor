@@ -1,0 +1,66 @@
+@implements IDisposable
+@inject NavigationManager NavigationManager
+
+<div class="top-row ps-3 navbar navbar-dark shadow-sm">
+    <div class="container-fluid">
+        <a class="navbar-brand fw-bold fs-4" href="">🛠️ Crox ERP</a>
+    </div>
+</div>
+
+<div class="nav-scrollable">
+    <nav class="flex-column mt-3">
+        <div class="nav-item px-3">
+            <NavLink class="nav-link rounded-3 mb-2" href="" Match="NavLinkMatch.All">
+                <span class="bi bi-speedometer2" aria-hidden="true"></span> Dashboard
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link rounded-3 mb-2" href="programari">
+                <span class="bi bi-calendar3" aria-hidden="true"></span> Agenda Service
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link rounded-3 mb-2" href="clienti">
+                <span class="bi bi-people-fill" aria-hidden="true"></span> Gestiune Clienți
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link rounded-3 mb-2" href="masini">
+                <span class="bi bi-car-front-fill" aria-hidden="true"></span> Parc Auto
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link rounded-3 mb-2" href="angajati">
+                <span class="bi bi-person-badge-fill" aria-hidden="true"></span> Echipa Mea
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3 mt-5 border-top pt-4">
+            <NavLink class="nav-link rounded-3 bg-success text-white shadow-sm py-3" href="receptie-noua">
+                <span class="bi bi-plus-circle-fill" aria-hidden="true"></span> 📋 Recepție Rapidă
+            </NavLink>
+        </div>
+    </nav>
+</div>
+
+@code {
+    private string? currentUrl;
+
+    protected override void OnInitialized()
+    {
+        currentUrl = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+        NavigationManager.LocationChanged += OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        currentUrl = NavigationManager.ToBaseRelativePath(e.Location);
+        StateHasChanged();
+    }
+
+    public void Dispose() => NavigationManager.LocationChanged -= OnLocationChanged;
+}

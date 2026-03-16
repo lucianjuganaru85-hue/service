@@ -1,0 +1,62 @@
+@page "/masini"
+@using AutoService.Data
+@using AutoService.Models
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
+@inject IJSRuntime JS
+@rendermode InteractiveServer
+
+<PageTitle>Mașini - Crox ERP</PageTitle>
+
+<div class="container mt-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="text-success fw-bold">🚗 Parc Auto</h2>
+        <a href="/" class="btn btn-outline-secondary">🏠 Acasă</a>
+    </div>
+
+    <div class="card shadow border-0 rounded-4">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="bg-light">
+                <tr>
+                    <th class="ps-4">Nr. Înmatriculare</th>
+                    <th>Marcă/Model</th>
+                    <th>Motorizare</th>
+                    <th class="text-center">Acțiuni</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (listaMasini != null)
+                {
+                    @foreach (var car in listaMasini)
+                    {
+                        <tr>
+                            <td class="ps-4 fw-bold text-primary">@car.LicensePlate</td>
+                            <td>@car.Brand @car.Model</td>
+                            <td><small>@car.EngineCapacity cm3 | @car.HorsePower HP | @car.FuelType</small></td>
+                            <td class="text-center">
+                                <div class="btn-group shadow-sm">
+                                    <a href="/editare-masina/@car.Id" class="btn btn-sm btn-outline-success">✏️ Editează</a>
+                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => StergeMasina(car.Id, car.LicensePlate)">🗑️ Șterge</button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@code {
+    private List<Car>? listaMasini;
+    protected override async Task OnInitializedAsync() => listaMasini = await DbContext.Cars.ToListAsync();
+
+    private async Task StergeMasina(int id, string nr)
+    {
+        if (await JS.InvokeAsync<bool>("confirm", $"Crox, ștergem mașina {nr}?"))
+        {
+            var c = await DbContext.Cars.FindAsync(id);
+            if (c != null) { DbContext.Cars.Remove(c); await DbContext.SaveChangesAsync(); listaMasini = await DbContext.Cars.ToListAsync(); }
+        }
+    }
+}

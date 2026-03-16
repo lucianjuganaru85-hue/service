@@ -1,0 +1,123 @@
+@page "/facturi-furnizori/arhiva"
+@using AutoService.Data
+@using AutoService.Models
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>Arhivă Facturi Șterse - Crox ERP</PageTitle>
+
+<div class="container-fluid mt-3">
+    @* ANTET *@
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h4 class="fw-bold text-danger mb-0">🗑️ Arhivă Facturi Șterse</h4>
+            <p class="text-muted small mb-0">Facturi marcate pentru ștergere care pot fi restaurate sau eliminate definitiv</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="/facturi-furnizori" class="btn btn-sm btn-outline-secondary shadow-sm">🔙 Înapoi la Facturi</a>
+            <a href="/" class="btn btn-sm btn-dark shadow-sm">🏠 Acasă</a>
+        </div>
+    </div>
+
+    @* TABEL ARHIVĂ *@
+    <div class="card shadow border-0 rounded-3 overflow-hidden">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0 text-center" style="font-size: 0.85rem;">
+                <thead class="bg-danger text-white">
+                    <tr>
+                        <th class="ps-3 text-start">Data Facturii</th>
+                        <th>Furnizor</th>
+                        <th>Nr. Factură</th>
+                        <th>Total (lei)</th>
+                        <th>Data Ștergerii (Aprox)</th>
+                        <th class="pe-3 text-end">Acțiuni</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (deletedInvoices == null)
+                    {
+                        <tr><td colspan="6" class="py-4 text-muted">Se încarcă arhiva...</td></tr>
+                    }
+                    else if (!deletedInvoices.Any())
+                    {
+                        <tr><td colspan="6" class="py-5 text-muted italic">Coșul de gunoi este gol. Nu există facturi șterse.</td></tr>
+                    }
+                    else
+                    {
+                        @foreach (var inv in deletedInvoices)
+                        {
+                            <tr class="table-light">
+                                <td class="ps-3 text-start">@inv.InvoiceDate.ToString("dd.MM.yyyy")</td>
+                                <td class="fw-bold">@inv.Supplier?.Name</td>
+                                <td>@inv.InvoiceNumber</td>
+                                <td class="fw-bold text-danger">@inv.TotalValue.ToString("N2")</td>
+                                <td class="text-muted small">@DateTime.Now.ToString("dd.MM.yyyy")</td> @* Notă: Poți adăuga un câmp DeletedAt în model pentru precizie *@
+                                <td class="pe-3 text-end">
+                                    <div class="btn-group shadow-sm">
+                                        @* BUTON RESTAURARE *@
+                                        <button class="btn btn-xs btn-success" 
+                                                @onclick="() => RestaureazaFactura(inv)" 
+                                                title="Restaurează în listă">🔄 Restaurează</button>
+                                        
+                                        @* BUTON ȘTERGERE DEFINITIVĂ *@
+                                        <button class="btn btn-xs btn-outline-danger" 
+                                                @onclick="() => StergeDefinitiv(inv)" 
+                                                title="Șterge definitiv din baza de date">❌ Elimină</button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<style>
+    .btn-xs { padding: 0.25rem 0.6rem; font-size: 0.75rem; font-weight: bold; }
+    .table-light { background-color: #fdfdfe !important; }
+</style>
+
+@code {
+    private List<SupplierInvoice>? deletedInvoices;
+
+    protected override async Task OnInitializedAsync() => await LoadDeletedData();
+
+    private async Task LoadDeletedData()
+    {
+        // Încărcăm DOAR facturile care au IsDeleted = true
+        deletedInvoices = await DbContext.SupplierInvoices
+            .Include(s => s.Supplier)
+            .Where(i => i.IsDeleted == true)
+            .OrderByDescending(s => s.InvoiceDate)
+            .ToListAsync();
+    }
+
+    private async Task RestaureazaFactura(SupplierInvoice inv)
+    {
+        bool confirm = await JS.InvokeAsync<bool>("confirm", $"Vrei să restaurezi factura {inv.InvoiceNumber} în lista activă?");
+        
+        if (confirm)
+        {
+            inv.IsDeleted = false; // Punem înapoi pe false
+            await DbContext.SaveChangesAsync();
+            await LoadDeletedData();
+        }
+    }
+
+    private async Task StergeDefinitiv(SupplierInvoice inv)
+    {
+        bool confirm = await JS.InvokeAsync<bool>("confirm", $"⚠️ ATENȚIE: Ștergerea definitivă a facturii {inv.InvoiceNumber} va elimina orice urmă a acesteia din baza de date. Ești sigur?");
+        
+        if (confirm)
+        {
+            DbContext.SupplierInvoices.Remove(inv);
+            await DbContext.SaveChangesAsync();
+            await LoadDeletedData();
+        }
+    }
+}

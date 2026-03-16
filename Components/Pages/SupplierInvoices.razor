@@ -1,0 +1,126 @@
+@page "/facturi-furnizori"
+@using AutoService.Data
+@using AutoService.Models
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>Facturi Furnizori - Crox ERP</PageTitle>
+
+<div class="container-fluid mt-3">
+    @* ANTET *@
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h4 class="fw-bold text-dark mb-0">📂 Istoric Facturi Furnizori</h4>
+            <p class="text-muted small mb-0">Gestionare recepții marfă și scadențe furnizori</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="/adaugare-nir" class="btn btn-sm btn-primary fw-bold shadow-sm">➕ Adaugă NIR Nou</a>
+            <a href="/facturi-furnizori/arhiva" class="btn btn-sm btn-outline-danger shadow-sm">🗑️ Vezi Arhiva</a>
+            <a href="/" class="btn btn-sm btn-dark shadow-sm">🏠 Acasă</a>
+        </div>
+    </div>
+
+    @* TABEL ISTORIC *@
+    <div class="card shadow border-0 rounded-3 overflow-hidden">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0 text-center" style="font-size: 0.85rem;">
+                <thead class="bg-dark text-white">
+                    <tr>
+                        <th class="ps-3 text-start">Data</th>
+                        <th>Furnizor</th>
+                        <th>Nr. Factură</th>
+                        <th>Total (lei)</th>
+                        <th>Scadență</th>
+                        <th>Status</th>
+                        <th class="pe-3 text-end">Acțiuni</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (invoices == null)
+                    {
+                        <tr><td colspan="7" class="py-4 text-muted">Se încarcă lista de facturi...</td></tr>
+                    }
+                    else if (!invoices.Any())
+                    {
+                        <tr><td colspan="7" class="py-4 text-muted italic">Nicio factură înregistrată în baza de date.</td></tr>
+                    }
+                    else
+                    {
+                        @foreach (var inv in invoices)
+                        {
+                            <tr>
+                                <td class="ps-3 text-start">@inv.InvoiceDate.ToString("dd.MM.yyyy")</td>
+                                <td class="fw-bold">@inv.Supplier?.Name</td>
+                                <td>@inv.InvoiceNumber</td>
+                                <td class="fw-bold text-primary">@inv.TotalValue.ToString("N2")</td>
+                                <td class="@(inv.DueDate < DateTime.Today && !inv.IsPaid ? "text-danger fw-bold" : "")">
+                                    @inv.DueDate.ToString("dd.MM.yyyy")
+                                </td>
+                                <td>
+                                    @if (inv.IsPaid)
+                                    {
+                                        <span class="badge bg-success rounded-pill px-2">Plătită</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-warning text-dark rounded-pill px-2">Scadentă</span>
+                                    }
+                                </td>
+                                <td class="pe-3 text-end">
+                                    <div class="btn-group shadow-sm">
+                                        @* BUTON EDITARE NOU *@
+                                        <button class="btn btn-xs btn-outline-primary" 
+                                                @onclick='() => Navigation.NavigateTo($"/editare-nir/{inv.Id}")' 
+                                                title="Editează NIR">✏️</button>
+                                        
+                                        <button class="btn btn-xs btn-outline-dark" 
+                                                @onclick="() => StergeFactura(inv)" 
+                                                title="Șterge NIR">🗑️</button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<style>
+    .table-sm td, .table-sm th { padding: 0.6rem 0.4rem !important; }
+    .btn-xs { padding: 0.2rem 0.5rem; font-size: 0.75rem; }
+    .table-hover tbody tr:hover { background-color: rgba(0,0,0,0.02); }
+</style>
+
+@code {
+    private List<SupplierInvoice>? invoices;
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        // Încărcăm facturile, filtrăm pe cele șterse (Soft Delete) și includem datele furnizorului
+        invoices = await DbContext.SupplierInvoices
+            .Include(s => s.Supplier)
+            .Where(i => !i.IsDeleted)
+            .OrderByDescending(s => s.InvoiceDate)
+            .ToListAsync();
+    }
+
+    private async Task StergeFactura(SupplierInvoice inv)
+    {
+        bool confirm = await JS.InvokeAsync<bool>("confirm", $"Ești sigur că vrei să ștergi factura {inv.InvoiceNumber}? Această acțiune va marca documentul ca șters în sistem.");
+        
+        if (confirm)
+        {
+            // Aplicăm Soft Delete pentru a păstra integritatea bazei de date
+            inv.IsDeleted = true;
+            await DbContext.SaveChangesAsync();
+            await LoadData();
+        }
+    }
+}

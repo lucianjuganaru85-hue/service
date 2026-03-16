@@ -1,0 +1,247 @@
+@page "/deviz/{Id:int}"
+@using AutoService.Data
+@using AutoService.Models
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>Deviz - @(appt?.Car?.LicensePlate ?? "Incarcare...")</PageTitle>
+
+@if (appt == null)
+{
+    <div class="container mt-5 text-center">
+        <div class="spinner-border text-primary" role="status"></div>
+        <p class="mt-2 text-muted italic">Se prelucrează datele...</p>
+    </div>
+}
+else
+{
+    <div class="container mt-4 mb-5">
+        @* NAVIGARE *@
+        <div class="d-flex justify-content-between mb-3 no-print">
+            <button class="btn btn-outline-secondary shadow-sm fw-bold" @onclick='() => Navigation.NavigateTo("/programari")'>⬅️ Înapoi la Agendă</button>
+            <div class="d-flex gap-2">
+                <button class="btn btn-primary shadow-sm fw-bold" @onclick="DeschideSelectorStoc">📦 Adaugă Piese</button>
+                <button class="btn btn-warning shadow-sm fw-bold" @onclick="DeschideModalManopera">👨‍🔧 Adaugă Manoperă</button>
+                <button class="btn btn-outline-danger shadow-sm fw-bold" @onclick='() => Navigation.NavigateTo("/programari")'>✖ Închide</button>
+            </div>
+        </div>
+
+        @* DEVIZUL *@
+        <div class="card shadow-sm p-5 rounded-0 border-dark shadow">
+            @* ANTET *@
+            <div class="row border-bottom pb-4 mb-4">
+                <div class="col-6 text-start">
+                    <h3 class="fw-bold text-uppercase text-primary mb-0">CROX SERVICE AUTO</h3>
+                    <div class="small text-muted">Document generat la: @DateTime.Now.ToString("dd.MM.yyyy HH:mm")</div>
+                </div>
+                <div class="col-6 text-end">
+                    <h1 class="display-6 fw-bold text-muted">DEVIZ #@appt.Id</h1>
+                </div>
+            </div>
+
+            @* DATE CLIENT *@
+            <div class="row mb-4 bg-light p-3 mx-0 border">
+                <div class="col-6 border-end">
+                    <div class="text-uppercase small fw-bold text-muted">Client:</div>
+                    <div class="fs-5 fw-bold">@appt.Car?.Client?.FirstName @appt.Car?.Client?.LastName</div>
+                    <div class="small">Tel: @appt.Car?.Client?.PhoneNumber</div>
+                </div>
+                <div class="col-6 ps-4">
+                    <div class="text-uppercase small fw-bold text-muted">Vehicul:</div>
+                    <div class="fs-5 fw-bold text-primary">@appt.Car?.LicensePlate</div>
+                    <div class="small">@appt.Car?.Brand @appt.Car?.Model | @appt.Car?.VIN</div>
+                </div>
+            </div>
+
+            @* TABEL ITEME *@
+            <table class="table table-bordered align-middle text-center mt-2">
+                <thead class="table-dark small">
+                    <tr>
+                        <th style="width: 50px;">Nr.</th>
+                        <th class="text-start">Descriere Reper / Operațiune</th>
+                        <th style="width: 100px;">Cantitate / Ore</th>
+                        <th style="width: 120px;">Preț Unit.</th>
+                        <th style="width: 150px;">Total (lei)</th>
+                        <th class="no-print" style="width: 50px;"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @{ int counter = 1; }
+                    @foreach (var item in appt.ServiceItems)
+                    {
+                        <tr>
+                            <td>@(counter++)</td>
+                            <td class="text-start ps-3">
+                                @(item.ProductId != null ? "📦 " : "🔧 ") @item.Name
+                            </td>
+                            <td>@item.Quantity</td>
+                            <td class="text-end">@item.UnitPrice.ToString("N2")</td>
+                            <td class="text-end fw-bold">@item.TotalPrice.ToString("N2")</td>
+                            <td class="no-print">
+                                <button class="btn btn-sm text-danger" @onclick="() => StergeArticol(item)">🗑️</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+
+            @* SUMAR FINANCIAR *@
+            <div class="row mt-4">
+                <div class="col-7">
+                    <div class="border p-2 small italic text-muted">
+                        * Garanția pentru piese este de 24 luni, iar pentru manoperă 3 luni.
+                    </div>
+                </div>
+                <div class="col-5">
+                    <table class="table table-sm table-borderless">
+                        <tr>
+                            <td class="text-end fw-bold">Piese:</td>
+                            <td class="text-end">@appt.ServiceItems.Where(i => i.ProductId != null).Sum(i => i.TotalPrice).ToString("N2") lei</td>
+                        </tr>
+                        <tr>
+                            <td class="text-end fw-bold">Manoperă:</td>
+                            <td class="text-end">@appt.ServiceItems.Where(i => i.ProductId == null).Sum(i => i.TotalPrice).ToString("N2") lei</td>
+                        </tr>
+                        <tr class="border-top border-dark">
+                            <td class="text-end fw-bold fs-4">TOTAL:</td>
+                            <td class="text-end fw-bold fs-4 text-primary">@appt.ServiceItems.Sum(x => x.TotalPrice).ToString("N2") lei</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-4 text-center no-print">
+            <button class="btn btn-dark btn-lg px-5 shadow-lg fw-bold" @onclick="Print">🖨️ PRINTEAZĂ DEVIZUL</button>
+        </div>
+    </div>
+}
+
+@* MODAL SELECTIE DIN STOC *@
+@if (isStocModalOpen)
+{
+    <div class="custom-modal-backdrop" @onclick="() => isStocModalOpen = false"></div>
+    <div class="custom-modal-content shadow-lg p-4">
+        <h5 class="fw-bold mb-3 border-bottom pb-2">📦 Selectează Piese din Magazie</h5>
+        <input type="text" class="form-control form-control-sm mb-3" placeholder="Caută piesa..." @bind="stocSearchTerm" @bind:event="oninput" />
+        <div class="table-responsive" style="max-height: 300px;">
+            <table class="table table-sm table-hover small">
+                <thead class="bg-light">
+                    <tr><th>Piesă</th><th class="text-center">Stoc</th><th class="text-end">Preț Mediu</th><th></th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var p in ProduseFiltrate) {
+                        <tr>
+                            <td>@p.Name <br/><small class="text-muted">@p.SKU</small></td>
+                            <td class="text-center @(p.StockQuantity <= 0 ? "text-danger" : "")">@p.StockQuantity</td>
+                            <td class="text-end">@p.AveragePurchasePrice.ToString("N2")</td>
+                            <td class="text-end">
+                                <button class="btn btn-xs btn-primary" @onclick="() => AdaugaPiesa(p)" disabled="@(p.StockQuantity <= 0)">➕</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="text-end mt-3"><button class="btn btn-secondary btn-sm" @onclick="() => isStocModalOpen = false">Închide</button></div>
+    </div>
+}
+
+@* MODAL MANOPERA *@
+@if (isManoperaModalOpen)
+{
+    <div class="custom-modal-backdrop" @onclick="() => isManoperaModalOpen = false"></div>
+    <div class="custom-modal-content shadow-lg p-4" style="width: 400px;">
+        <h5 class="fw-bold mb-3 border-bottom pb-2">🔧 Adăugare Manoperă</h5>
+        <div class="mb-2">
+            <label class="small fw-bold">Denumire lucrare</label>
+            <input type="text" class="form-control form-control-sm" @bind="manoperaName" placeholder="Ex: Înlocuit kit distribuție" />
+        </div>
+        <div class="row g-2 mb-3">
+            <div class="col-6">
+                <label class="small fw-bold">Ore lucrate</label>
+                <input type="number" class="form-control form-control-sm" @bind="manoperaHours" step="0.5" />
+            </div>
+            <div class="col-6">
+                <label class="small fw-bold">Tarif orar (lei)</label>
+                <input type="number" class="form-control form-control-sm" @bind="manoperaRate" />
+            </div>
+        </div>
+        <div class="d-flex justify-content-end gap-2">
+            <button class="btn btn-secondary btn-sm" @onclick="() => isManoperaModalOpen = false">Anulează</button>
+            <button class="btn btn-warning btn-sm fw-bold" @onclick="AdaugaManopera">💾 Adaugă pe Deviz</button>
+        </div>
+    </div>
+}
+
+<style>
+    @@media print { .no-print { display: none !important; } .container { max-width: 100% !important; margin: 0 !important; } .card { border: none !important; box-shadow: none !important; } }
+    .btn-xs { padding: 0.1rem 0.4rem; font-size: 0.7rem; }
+    .custom-modal-backdrop { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); z-index: 1000; }
+    .custom-modal-content { position: fixed; top: 15%; left: 50%; transform: translateX(-50%); background: white; border-radius: 12px; z-index: 1001; min-width: 400px; }
+</style>
+
+@code {
+    [Parameter] public int Id { get; set; }
+    private Appointment? appt;
+    private List<Product> listaProduse = new();
+    
+    private bool isStocModalOpen = false;
+    private string stocSearchTerm = "";
+
+    private bool isManoperaModalOpen = false;
+    private string manoperaName = "";
+    private double manoperaHours = 1;
+    private decimal manoperaRate = 120; // Tarif standard prestabilit
+
+    protected override async Task OnInitializedAsync() => await IncarcaDate();
+
+    private async Task IncarcaDate() {
+        appt = await DbContext.Appointments
+            .Include(a => a.Car).ThenInclude(c => c.Client)
+            .Include(a => a.ServiceItems)
+            .FirstOrDefaultAsync(a => a.Id == Id);
+        listaProduse = await DbContext.Products.OrderBy(p => p.Name).ToListAsync();
+    }
+
+    private IEnumerable<Product> ProduseFiltrate => 
+        string.IsNullOrWhiteSpace(stocSearchTerm) ? listaProduse : 
+        listaProduse.Where(p => p.Name.Contains(stocSearchTerm, StringComparison.OrdinalIgnoreCase));
+
+    private void DeschideSelectorStoc() => isStocModalOpen = true;
+    private void DeschideModalManopera() => isManoperaModalOpen = true;
+
+    private async Task AdaugaPiesa(Product p) {
+        p.StockQuantity -= 1;
+        var item = new ServiceItem { AppointmentId = Id, ProductId = p.Id, Name = p.Name, Quantity = 1, UnitPrice = p.AveragePurchasePrice * 1.3m };
+        DbContext.ServiceItems.Add(item);
+        await DbContext.SaveChangesAsync();
+        isStocModalOpen = false;
+        await IncarcaDate();
+    }
+
+    private async Task AdaugaManopera() {
+        if (string.IsNullOrEmpty(manoperaName)) return;
+        var item = new ServiceItem { AppointmentId = Id, Name = manoperaName, Quantity = manoperaHours, UnitPrice = manoperaRate, ProductId = null };
+        DbContext.ServiceItems.Add(item);
+        await DbContext.SaveChangesAsync();
+        isManoperaModalOpen = false;
+        manoperaName = "";
+        await IncarcaDate();
+    }
+
+    private async Task StergeArticol(ServiceItem item) {
+        if (item.ProductId != null) {
+            var p = await DbContext.Products.FindAsync(item.ProductId);
+            if (p != null) p.StockQuantity += item.Quantity;
+        }
+        DbContext.ServiceItems.Remove(item);
+        await DbContext.SaveChangesAsync();
+        await IncarcaDate();
+    }
+
+    private async Task Print() => await JS.InvokeVoidAsync("window.print");
+}

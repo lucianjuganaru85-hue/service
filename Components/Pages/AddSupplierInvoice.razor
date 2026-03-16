@@ -1,0 +1,211 @@
+@page "/adaugare-nir"
+@using AutoService.Data
+@using AutoService.Models
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@rendermode InteractiveServer
+
+<PageTitle>NIR Nou - Crox ERP</PageTitle>
+
+<div class="container-fluid mt-3">
+    @* ANTET *@
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h4 class="fw-bold text-dark mb-0">📦 Recepție Marfă (NIR)</h4>
+            <p class="text-muted small mb-0">Înregistrare factură furnizor și actualizare stocuri</p>
+        </div>
+        <button class="btn btn-sm btn-outline-secondary shadow-sm" @onclick='() => Navigation.NavigateTo("/facturi-furnizori")'>🔙 Înapoi la Listă</button>
+    </div>
+
+    <div class="row">
+        @* DATE FACTURĂ *@
+        <div class="col-md-4">
+            <div class="card shadow-sm border-0 mb-3">
+                <div class="card-body">
+                    <h6 class="fw-bold border-bottom pb-2 mb-3">📄 Date Document</h6>
+                    <div class="mb-3">
+                        <label class="small fw-bold">Furnizor</label>
+                        <select class="form-select form-select-sm" @bind="invoice.SupplierId">
+                            <option value="0">-- Selectează Furnizor --</option>
+                            @foreach (var s in listaFurnizori)
+                            {
+                                <option value="@s.Id">@s.Name</option>
+                            }
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="small fw-bold">Serie/Nr. Factură</label>
+                        <input type="text" class="form-control form-control-sm" @bind="invoice.InvoiceNumber" placeholder="Ex: INV123" />
+                    </div>
+
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="small fw-bold">Data Factură</label>
+                            <input type="date" class="form-control form-control-sm" @bind="invoice.InvoiceDate" />
+                        </div>
+                        <div class="col-6">
+                            <label class="small fw-bold text-primary">Data Scadență</label>
+                            <input type="date" class="form-control form-control-sm" @bind="invoice.DueDate" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            @* REZUMAT FINANCIAR *@
+            <div class="card shadow-sm border-0 bg-dark text-white">
+                <div class="card-body text-center">
+                    <span class="small text-uppercase opacity-75">Total Factură</span>
+                    <h2 class="fw-bold mb-0">@TotalFactura.ToString("N2") lei</h2>
+                    <hr class="my-2 opacity-25" />
+                    <button class="btn btn-success w-100 fw-bold" @onclick="SalveazaFactura" disabled="@(!PoateSalva)">
+                        ✅ FINALIZEAZĂ RECEPȚIA
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        @* TABEL REPERE *@
+        <div class="col-md-8">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="fw-bold mb-0">🛠️ Produse / Repere pe Factură</h6>
+                        <button class="btn btn-sm btn-primary" @onclick="AdaugaRandNou">➕ Adaugă Rând</button>
+                    </div>
+                    
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle">
+                            <thead class="bg-light small">
+                                <tr>
+                                    <th style="width: 40%;">Produs</th>
+                                    <th style="width: 15%;">Cantitate</th>
+                                    <th style="width: 20%;">Preț Achiziție (Fără TVA)</th>
+                                    <th style="width: 20%;">Total</th>
+                                    <th style="width: 5%;"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var item in items)
+                                {
+                                    <tr>
+                                        <td>
+                                            <select class="form-select form-select-sm" @bind="item.ProductId">
+                                                <option value="0">-- Selectează Produs --</option>
+                                                @foreach (var p in listaProduse)
+                                                {
+                                                    <option value="@p.Id">@p.Name (@p.StockQuantity @p.UM)</option>
+                                                }
+                                            </select>
+                                        </td>
+                                        <td>
+                                            <input type="number" class="form-control form-control-sm text-center" 
+                                                   @bind="item.Quantity" @bind:event="oninput" />
+                                        </td>
+                                        <td>
+                                            <div class="input-group input-group-sm">
+                                                <input type="number" class="form-control text-end" 
+                                                       @bind="item.UnitPrice" @bind:event="oninput" step="0.01" />
+                                                <span class="input-group-text">lei</span>
+                                            </div>
+                                        </td>
+                                        <td class="text-end fw-bold">
+                                            @(( (decimal)item.Quantity * item.UnitPrice ).ToString("N2"))
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-sm text-danger" @onclick="() => StergeRand(item)">🗑️</button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .form-control-sm, .form-select-sm { border-radius: 6px; }
+    .table th { font-weight: 700; color: #555; }
+</style>
+
+@code {
+    private SupplierInvoice invoice = new() 
+    { 
+        InvoiceDate = DateTime.Today, 
+        DueDate = DateTime.Today.AddDays(14) // Implicit 14 zile, dar poate fi modificat din UI
+    };
+    private List<InvoiceItemViewModel> items = new();
+    private List<Supplier> listaFurnizori = new();
+    private List<Product> listaProduse = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        listaFurnizori = await DbContext.Suppliers.OrderBy(s => s.Name).ToListAsync();
+        listaProduse = await DbContext.Products.OrderBy(p => p.Name).ToListAsync();
+        AdaugaRandNou();
+    }
+
+    private decimal TotalFactura => items.Sum(i => (decimal)i.Quantity * i.UnitPrice);
+    private bool PoateSalva => invoice.SupplierId != 0 && !string.IsNullOrEmpty(invoice.InvoiceNumber) && items.Any(i => i.ProductId != 0 && i.Quantity > 0);
+
+    private void AdaugaRandNou() => items.Add(new InvoiceItemViewModel());
+    
+    private void StergeRand(InvoiceItemViewModel item)
+    {
+        if (items.Count > 1) items.Remove(item);
+    }
+
+    private async Task SalveazaFactura()
+    {
+        try
+        {
+            // Setăm valorile pentru salvare (Asigurăm formatul UTC pentru Postgres)
+            invoice.InvoiceDate = DateTime.SpecifyKind(invoice.InvoiceDate, DateTimeKind.Utc);
+            invoice.DueDate = DateTime.SpecifyKind(invoice.DueDate, DateTimeKind.Utc);
+            invoice.TotalValue = TotalFactura;
+
+            DbContext.SupplierInvoices.Add(invoice);
+            await DbContext.SaveChangesAsync();
+
+            foreach (var item in items.Where(i => i.ProductId != 0))
+            {
+                var prod = await DbContext.Products.FindAsync(item.ProductId);
+                if (prod != null)
+                {
+                    decimal valoareStocExistent = (decimal)prod.StockQuantity * prod.AveragePurchasePrice;
+                    decimal valoareIntrareNoua = (decimal)item.Quantity * item.UnitPrice;
+                    
+                    prod.StockQuantity += item.Quantity;
+                    prod.AveragePurchasePrice = (valoareStocExistent + valoareIntrareNoua) / (decimal)prod.StockQuantity;
+                }
+
+                DbContext.SupplierInvoiceItems.Add(new SupplierInvoiceItem 
+                { 
+                    SupplierInvoiceId = invoice.Id, 
+                    ProductId = item.ProductId, 
+                    Quantity = item.Quantity, 
+                    UnitPurchasePrice = item.UnitPrice 
+                });
+            }
+
+            await DbContext.SaveChangesAsync();
+            Navigation.NavigateTo("/facturi-furnizori");
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", "Eroare la salvare: " + ex.Message);
+        }
+    }
+
+    public class InvoiceItemViewModel
+    {
+        public int ProductId { get; set; }
+        public double Quantity { get; set; } = 1;
+        public decimal UnitPrice { get; set; } = 0;
+    }
+}

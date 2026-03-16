@@ -1,0 +1,84 @@
+@page "/arhiva"
+@using AutoService.Data
+@using AutoService.Models
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>Arhivă Service - Crox ERP</PageTitle>
+
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="text-dark fw-bold mb-0">🗄️ Arhiva Istorică Service</h2>
+            <p class="text-muted small">Istoricul complet al lucrărilor finalizate.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <input type="text" class="form-control shadow-sm" placeholder="Caută Nr. Auto sau Client..." 
+                   @bind="searchTerm" @bind:event="oninput" style="width: 300px;" />
+            <a href="/" class="btn btn-outline-secondary shadow-sm">🏠 Acasă</a>
+        </div>
+    </div>
+
+    <div class="card shadow-lg border-0 rounded-4 overflow-hidden">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 text-center">
+                <thead class="bg-light text-uppercase small fw-bold">
+                    <tr>
+                        <th class="ps-4 text-start">Data</th>
+                        <th>Vehicul</th>
+                        <th>Client</th>
+                        <th>Mecanic Responsabil</th>
+                        <th>Total Deviz</th>
+                        <th>Acțiuni</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (listaArhiva != null)
+                    {
+                        @foreach (var a in listaFiltrata)
+                        {
+                            <tr>
+                                <td class="ps-4 text-start fw-bold">@a.ScheduledDate.ToString("dd.MM.yyyy")</td>
+                                <td><span class="badge bg-primary px-3">@a.Car?.LicensePlate</span></td>
+                                <td>@a.Car?.Client?.FirstName @a.Car?.Client?.LastName</td>
+                                <td>
+                                    <span class="text-muted fw-bold">
+                                        @(a.AssignedMechanic != null ? a.AssignedMechanic.FirstName : "Nealocat")
+                                    </span>
+                                </td>
+                                <td class="fw-bold text-success">@a.ServiceItems.Sum(si => si.TotalPrice).ToString("N2") lei</td>
+                                <td>
+                                    <a href="/deviz/@a.Id" class="btn btn-sm btn-info text-white fw-bold px-3 shadow-sm">
+                                        👁️ VEZI DOSAR COMPLET
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<Appointment>? listaArhiva;
+    private string searchTerm = "";
+
+    protected override async Task OnInitializedAsync() {
+        listaArhiva = await DbContext.Appointments
+            .Include(a => a.Car).ThenInclude(c => c.Client)
+            .Include(a => a.AssignedMechanic)
+            .Include(a => a.ServiceItems)
+            .Where(a => a.Status == "Finalizată")
+            .OrderByDescending(a => a.ScheduledDate).ToListAsync();
+    }
+
+    private IEnumerable<Appointment>? listaFiltrata => 
+        string.IsNullOrWhiteSpace(searchTerm) ? listaArhiva : 
+        listaArhiva?.Where(a => 
+            a.Car.LicensePlate.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) || 
+            a.Car.Client.LastName.Contains(searchTerm, StringComparison.OrdinalIgnoreCase));
+}

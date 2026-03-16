@@ -1,0 +1,383 @@
+@page "/"
+@using AutoService.Data
+@using AutoService.Models
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>Dashboard - Crox ERP</PageTitle>
+
+<div class="container-fluid px-4 py-4">
+    @* HEADER *@
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold text-dark mb-0">📊 Dashboard</h3>
+            <p class="text-muted small mb-0">Prezentare generală a activității service-ului</p>
+        </div>
+        <div>
+            <span class="text-muted small fw-bold">📅 @DateTime.Now.ToString("dd.MM.yyyy")</span>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        @* PANOU PRINCIPAL (Stânga) *@
+        <div class="col-xl-10 col-lg-9">
+            
+            @* STATISTICI PRINCIPALE *@
+            <div class="row g-3 mb-4">
+                <div class="col-md-3">
+                    <div class="card border-0 shadow-sm rounded-4 h-100 bg-white transition-hover" style="cursor: pointer;" @onclick='() => Navigation.NavigateTo("/clienti")'>
+                        <div class="card-body d-flex align-items-center p-3">
+                            <div class="flex-shrink-0 bg-primary bg-opacity-10 text-primary rounded-circle p-2 me-3 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                                <span class="fs-4">👥</span>
+                            </div>
+                            <div>
+                                <p class="text-muted text-uppercase fw-bold mb-0" style="font-size: 0.7rem;">Total Clienți</p>
+                                <h5 class="mb-0 fw-bold text-dark">@totalClients</h5>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-3">
+                    <div class="card border-0 shadow-sm rounded-4 h-100 bg-white transition-hover" style="cursor: pointer;" @onclick='() => Navigation.NavigateTo("/masini")'>
+                        <div class="card-body d-flex align-items-center p-3">
+                            <div class="flex-shrink-0 bg-success bg-opacity-10 text-success rounded-circle p-2 me-3 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                                <span class="fs-4">🚗</span>
+                            </div>
+                            <div>
+                                <p class="text-muted text-uppercase fw-bold mb-0" style="font-size: 0.7rem;">Vehicule</p>
+                                <h5 class="mb-0 fw-bold text-dark">@totalCars</h5>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <div class="card border-0 shadow-sm rounded-4 h-100 bg-white transition-hover" style="cursor: pointer;" @onclick='() => Navigation.NavigateTo("/programari")'>
+                        <div class="card-body d-flex align-items-center p-3">
+                            <div class="flex-shrink-0 bg-warning bg-opacity-10 text-warning rounded-circle p-2 me-3 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                                <span class="fs-4">📅</span>
+                            </div>
+                            <div>
+                                <p class="text-muted text-uppercase fw-bold mb-0" style="font-size: 0.7rem;">Azi</p>
+                                <h5 class="mb-0 fw-bold text-dark">@todayAppts</h5>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <div class="card border-0 shadow-sm rounded-4 h-100 bg-white transition-hover" style="cursor: pointer;" @onclick='() => Navigation.NavigateTo("/angajati")'>
+                        <div class="card-body d-flex align-items-center p-3">
+                            <div class="flex-shrink-0 bg-info bg-opacity-10 text-info rounded-circle p-2 me-3 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                                <span class="fs-4">👨‍🔧</span>
+                            </div>
+                            <div>
+                                <p class="text-muted text-uppercase fw-bold mb-0" style="font-size: 0.7rem;">Mecanici</p>
+                                <h5 class="mb-0 fw-bold text-dark">@activeMechanics</h5>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            @* RADAR MECANICI (Încărcare Reală Echipă) *@
+            <div class="card shadow-sm border-0 rounded-4 overflow-hidden mb-4">
+                <div class="card-header bg-white border-bottom-0 pt-4 pb-2 px-4 d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0 fw-bold text-dark">📡 Radar Mecanici - Încărcare Azi</h6>
+                    <a href="/raport-incarcare" class="btn btn-sm btn-outline-info rounded-pill px-3 fw-bold shadow-sm">Detalii</a>
+                </div>
+                <div class="card-body px-4 pb-4">
+                    @if (radarMecanici == null)
+                    {
+                        <div class="d-flex justify-content-center p-3">
+                            <div class="spinner-border text-info" role="status"></div>
+                        </div>
+                    }
+                    else if (!radarMecanici.Any())
+                    {
+                        <div class="text-center p-3 text-muted">
+                            Nu există date despre mecanici pentru astăzi.
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="row g-3">
+                            @foreach (var item in radarMecanici)
+                            {
+                                <div class="col-md-3">
+                                    <div class="p-3 border border-light rounded-4 bg-light h-100 shadow-sm">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <span class="fw-bold small text-dark">@item.NumeAngajat</span>
+                                            <span class="badge @(item.ProcentIncarcare > 90 ? "bg-danger" : "bg-success") rounded-pill" style="font-size: 0.7rem;">
+                                                @item.OreOcupate.ToString("0.0")h / 13h
+                                            </span>
+                                        </div>
+                                        <div class="progress rounded-pill mb-2" style="height: 6px;">
+                                            <div class="progress-bar progress-bar-striped progress-bar-animated @(item.ProcentIncarcare > 90 ? "bg-danger" : (item.ProcentIncarcare > 50 ? "bg-warning" : "bg-success"))" 
+                                                 style="width: @(Math.Min(item.ProcentIncarcare, 100).ToString("0", System.Globalization.CultureInfo.InvariantCulture))%"></div>
+                                        </div>
+                                        <div class="text-muted" style="font-size: 0.7rem;">
+                                            Lucrări alocate: <span class="fw-bold text-dark">@item.NumarLucrari</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+
+            @* TABEL PROGRAMĂRI (Extins pe toată lățimea panoului) *@
+            <div class="card shadow-sm border-0 rounded-4 overflow-hidden h-100">
+                <div class="card-header bg-white border-bottom-0 pt-3 pb-2 px-3 d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0 fw-bold text-dark" style="font-size: 0.9rem;">📋 Programări Active</h6>
+                    <a href="/programari" class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-bold shadow-sm" style="font-size: 0.75rem;">Agendă</a>
+                </div>
+                <div class="card-body p-0">
+                    @if (recentAppts == null)
+                    {
+                        <div class="d-flex justify-content-center p-4">
+                            <div class="spinner-border text-primary spinner-border-sm" role="status"></div>
+                        </div>
+                    }
+                    else if (!recentAppts.Any())
+                    {
+                        <div class="text-center p-4 text-muted" style="font-size: 0.8rem;">
+                            Nu există programări recente.
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle mb-0">
+                                <thead class="bg-light text-muted" style="font-size: 0.65rem;">
+                                    <tr>
+                                        <th class="ps-3 fw-bold py-2 border-bottom-0">DATA / ORĂ</th>
+                                        <th class="fw-bold py-2 border-bottom-0">CLIENT / AUTO</th>
+                                        <th class="fw-bold py-2 border-bottom-0 text-end pe-3">STATUS</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var app in recentAppts)
+                                    {
+                                        <tr class="custom-row-hover">
+                                            <td class="ps-3 py-1">
+                                                <span class="fw-bold text-dark" style="font-size: 0.75rem;">@app.ScheduledDate.ToString("dd.MM.yyyy")</span>
+                                                <br />
+                                                <small class="text-muted" style="font-size: 0.65rem;">@app.ScheduledDate.ToString("HH:mm")</small>
+                                            </td>
+                                            <td class="py-1">
+                                                <span class="fw-bold text-dark d-block" style="font-size: 0.75rem;">@app.Car?.Client?.FirstName @app.Car?.Client?.LastName</span>
+                                                <span class="badge bg-light text-dark border shadow-sm px-1 py-0 mt-1" style="font-size: 0.6rem;">@app.Car?.LicensePlate</span>
+                                            </td>
+                                            <td class="py-1 text-end pe-3">
+                                                <span class="badge @GetBadgeClass(app.Status) rounded-pill px-2 py-1" style="font-size: 0.65rem;">@app.Status</span>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+
+        </div>
+
+        @* SIDEBAR DREAPTA (Gestiune & Financiar) *@
+        <div class="col-xl-2 col-lg-3">
+            <div class="d-flex flex-column gap-2 h-100">
+                <h6 class="fw-bold text-muted text-uppercase mb-1 px-2" style="font-size: 0.65rem; letter-spacing: 0.5px;">Gestiune</h6>
+                
+                <div class="card border-0 shadow-sm rounded-pill bg-white transition-hover" style="cursor: pointer;" @onclick='() => Navigation.NavigateTo("/magazie")' title="Repere Magazie">
+                    <div class="card-body p-1 d-flex align-items-center">
+                        <div class="bg-secondary bg-opacity-10 text-secondary rounded-circle d-flex align-items-center justify-content-center" style="width: 32px; height: 32px; margin-left: 2px;">
+                            <span style="font-size: 0.9rem;">📦</span>
+                        </div>
+                        <span class="fw-bold text-dark mx-2 flex-grow-1 text-truncate" style="font-size: 0.75rem;">Magazie</span>
+                        <span class="badge bg-secondary rounded-pill me-2">@totalProduse</span>
+                    </div>
+                </div>
+                
+                <div class="card border-0 shadow-sm rounded-pill bg-white transition-hover" style="cursor: pointer;" @onclick='() => Navigation.NavigateTo("/furnizori")' title="Furnizori Parteneri">
+                    <div class="card-body p-1 d-flex align-items-center">
+                        <div class="bg-dark bg-opacity-10 text-dark rounded-circle d-flex align-items-center justify-content-center" style="width: 32px; height: 32px; margin-left: 2px;">
+                            <span style="font-size: 0.9rem;">🚚</span>
+                        </div>
+                        <span class="fw-bold text-dark mx-2 flex-grow-1 text-truncate" style="font-size: 0.75rem;">Furnizori</span>
+                        <span class="badge bg-dark rounded-pill me-2">@totalFurnizori</span>
+                    </div>
+                </div>
+
+                <div class="card border-0 shadow-sm rounded-pill bg-white transition-hover" style="cursor: pointer;" @onclick='() => Navigation.NavigateTo("/facturi-furnizori")' title="Facturi (NIR)">
+                    <div class="card-body p-1 d-flex align-items-center">
+                        <div class="bg-danger bg-opacity-10 text-danger rounded-circle d-flex align-items-center justify-content-center" style="width: 32px; height: 32px; margin-left: 2px;">
+                            <span style="font-size: 0.9rem;">📑</span>
+                        </div>
+                        <span class="fw-bold text-dark mx-2 flex-grow-1 text-truncate" style="font-size: 0.75rem;">Facturi</span>
+                        <span class="badge bg-danger rounded-pill me-2">@totalFacturi</span>
+                    </div>
+                </div>
+
+                <div class="card border-0 shadow-sm rounded-pill bg-white transition-hover" style="cursor: pointer;" @onclick='() => Navigation.NavigateTo("/catalog-servicii")' title="Servicii Standard">
+                    <div class="card-body p-1 d-flex align-items-center">
+                        <div class="bg-primary bg-opacity-10 text-primary rounded-circle d-flex align-items-center justify-content-center" style="width: 32px; height: 32px; margin-left: 2px;">
+                            <span style="font-size: 0.9rem;">🏷️</span>
+                        </div>
+                        <span class="fw-bold text-dark mx-2 flex-grow-1 text-truncate" style="font-size: 0.75rem;">Servicii</span>
+                        <span class="badge bg-primary rounded-pill me-2">@totalServicii</span>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm border-0 rounded-4 overflow-hidden mt-2">
+                    <div class="card-header bg-white border-bottom-0 pt-3 pb-2 px-3 d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0 fw-bold text-danger" style="font-size: 0.8rem;">⚠️ Alerte Stoc</h6>
+                        <a href="/magazie" class="btn btn-sm btn-outline-danger rounded-pill px-2 py-0 fw-bold shadow-sm" style="font-size: 0.65rem;">Magazie</a>
+                    </div>
+                    <div class="card-body p-2" style="max-height: 220px; overflow-y: auto;">
+                        @if (lowStock == null)
+                        {
+                            <div class="d-flex justify-content-center p-2">
+                                <div class="spinner-border text-danger spinner-border-sm" role="status"></div>
+                            </div>
+                        }
+                        else if (!lowStock.Any())
+                        {
+                            <div class="text-center p-2 text-muted fw-bold" style="font-size: 0.7rem;">
+                                ✅ Stoc optim.
+                            </div>
+                        }
+                        else
+                        {
+                            <ul class="list-group list-group-flush mb-0">
+                                @foreach (var p in lowStock)
+                                {
+                                    <li class="list-group-item d-flex justify-content-between align-items-center border-0 rounded-3 mb-1 bg-light p-1 px-2">
+                                        <div class="overflow-hidden pe-1">
+                                            <div class="fw-bold text-dark text-truncate" style="font-size: 0.65rem; max-width: 130px;" title="@p.Name">@p.Name</div>
+                                            <div class="text-muted" style="font-size: 0.6rem;">Cod: @p.SKU</div>
+                                        </div>
+                                        <div class="text-end ps-1">
+                                            <span class="badge bg-danger rounded-pill shadow-sm" style="font-size: 0.6rem;">@p.StockQuantity @p.UM</span>
+                                        </div>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </div>
+                </div>
+
+                <div class="mt-auto pt-3">
+                    <div class="card bg-primary bg-opacity-10 border-0 rounded-pill shadow-sm text-center">
+                        <div class="card-body p-2 d-flex justify-content-center align-items-center">
+                            <span class="fs-5 me-2">🚀</span>
+                            <h6 class="fw-bold text-primary mb-0" style="font-size: 0.75rem;">ERP</h6>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .transition-hover {
+        transition: all 0.2s ease-in-out;
+    }
+    .transition-hover:hover {
+        background-color: #f8f9fa !important;
+        transform: translateY(-2px);
+        box-shadow: inset 4px 0 0 #0d6efd;
+    }
+
+    /* Efect de hover pe tabelul de programari, fara cursor de link */
+    .custom-row-hover {
+        transition: background-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+    }
+    .custom-row-hover:hover {
+        background-color: #f0f7ff !important;
+        box-shadow: inset 4px 0 0 #0d6efd;
+    }
+</style>
+
+@code {
+    private int totalClients, totalCars, todayAppts, activeMechanics;
+    private int totalProduse, totalFurnizori, totalFacturi, totalServicii;
+    private List<Appointment>? recentAppts;
+    private List<Product>? lowStock;
+    private List<WorkloadVM>? radarMecanici;
+
+    public class WorkloadVM {
+        public string NumeAngajat { get; set; } = "";
+        public int NumarLucrari { get; set; }
+        public double OreOcupate { get; set; }
+        public double ProcentIncarcare { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try 
+        {
+            totalClients = await DbContext.Clients.CountAsync(c => !c.IsDeleted);
+            totalCars = await DbContext.Cars.CountAsync(c => !c.IsDeleted);
+            activeMechanics = await DbContext.Employees.CountAsync(e => e.IsActive);
+            
+            var azi = DateTime.Today;
+            todayAppts = await DbContext.Appointments.CountAsync(a => a.ScheduledDate.Date == azi && !a.IsDeleted);
+
+            totalProduse = await DbContext.Products.CountAsync();
+            totalFurnizori = await DbContext.Suppliers.CountAsync();
+            totalFacturi = await DbContext.SupplierInvoices.CountAsync(i => !i.IsDeleted);
+            totalServicii = await DbContext.StandardServices.CountAsync();
+
+            recentAppts = await DbContext.Appointments
+                .Include(a => a.Car).ThenInclude(c => c.Client)
+                .Where(a => !a.IsDeleted)
+                .OrderByDescending(a => a.ScheduledDate)
+                .Take(10) 
+                .ToListAsync();
+
+            lowStock = await DbContext.Products
+                .Where(p => p.StockQuantity <= p.MinStockAlert)
+                .OrderBy(p => p.StockQuantity).Take(15).ToListAsync();
+
+            var angajati = await DbContext.Employees.Where(e => e.IsActive).ToListAsync();
+            var programariAziMecanici = await DbContext.Appointments
+                .Include(a => a.ServiceItems)
+                .Where(a => a.ScheduledDate.Date == azi && !a.IsDeleted)
+                .ToListAsync();
+
+            radarMecanici = angajati.Select(e => {
+                var lucrariMecanic = programariAziMecanici.Where(a => a.AssignedMechanicId == e.Id).ToList();
+                
+                double oreTotale = lucrariMecanic.Sum(l => l.ServiceItems != null && l.ServiceItems.Any() 
+                    ? l.ServiceItems.Sum(si => si.EstimatedHours) 
+                    : 1.0 * lucrariMecanic.Count);
+
+                return new WorkloadVM {
+                    NumeAngajat = $"{e.FirstName} {e.LastName}",
+                    NumarLucrari = lucrariMecanic.Count,
+                    OreOcupate = oreTotale,
+                    ProcentIncarcare = (oreTotale / 13.0) * 100 
+                };
+            }).OrderByDescending(r => r.ProcentIncarcare).ToList();
+        }
+        catch (Exception)
+        {
+            // Protejăm pagina de un crash al bazei de date
+        }
+    }
+
+    private string GetBadgeClass(string status) => status switch
+    {
+        "Nouă" => "bg-info text-dark",
+        "În Lucru" => "bg-warning text-dark",
+        "Finalizată" => "bg-success",
+        "Programată" => "bg-primary",
+        "Anulată" => "bg-danger",
+        _ => "bg-secondary"
+    };
+}

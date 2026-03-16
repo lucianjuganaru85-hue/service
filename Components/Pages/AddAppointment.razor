@@ -1,0 +1,158 @@
+@page "/programare-noua"
+@using AutoService.Data
+@using AutoService.Models
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.WebUtilities
+@using System.ComponentModel.DataAnnotations
+@inject ApplicationDbContext DbContext
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>Programare Nouă - Crox ERP</PageTitle>
+
+<div class="container mt-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="text-warning fw-bold mb-0">📅 Programare Nouă</h2>
+        <a href="/programari" class="btn btn-outline-secondary shadow-sm">Anulează</a>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <EditForm Model="nouaProgramare" OnValidSubmit="SalveazaProgramare" FormName="AddApptForm">
+                <DataAnnotationsValidator />
+                <div class="card shadow-lg border-0 rounded-4">
+                    <div class="card-body p-4 bg-white">
+                        <div class="row g-3">
+                            @* SELECTARE MAȘINĂ *@
+                            <div class="col-md-12">
+                                <label class="form-label fw-bold small">Mașină (Client)</label>
+                                <InputSelect @bind-Value="nouaProgramare.CarId" class="form-select shadow-sm">
+                                    <option value="0">-- Alege mașina --</option>
+                                    @foreach (var car in listaMasini)
+                                    {
+                                        <option value="@car.Id">@car.LicensePlate (@car.Brand @car.Model) - @car.Client?.LastName</option>
+                                    }
+                                </InputSelect>
+                                <ValidationMessage For="@(() => nouaProgramare.CarId)" class="text-danger small" />
+                            </div>
+
+                            @* SELECTARE MECANIC *@
+                            <div class="col-md-12">
+                                <label class="form-label fw-bold small">Mecanic Alocat</label>
+                                <InputSelect @bind-Value="nouaProgramare.MechanicId" class="form-select shadow-sm">
+                                    <option value="">-- Fără mecanic alocat --</option>
+                                    @foreach (var emp in listaMecanici)
+                                    {
+                                        <option value="@emp.Id">@emp.FirstName @emp.LastName (@emp.Specialization)</option>
+                                    }
+                                </InputSelect>
+                            </div>
+
+                            @* DATĂ ȘI ORĂ *@
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold small">Data</label>
+                                <InputDate @bind-Value="DataSelectata" class="form-control shadow-sm" min="@DateTime.Now.ToString("yyyy-MM-dd")" />
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold small">Ora</label>
+                                <InputSelect @bind-Value="OraSelectata" class="form-select shadow-sm">
+                                    @foreach (var ora in OreDisponibile)
+                                    {
+                                        <option value="@ora">@ora</option>
+                                    }
+                                </InputSelect>
+                            </div>
+
+                            @* DESCRIERE *@
+                            <div class="col-md-12">
+                                <label class="form-label fw-bold small">Descriere Problemă</label>
+                                <InputTextArea @bind-Value="nouaProgramare.Description" class="form-control shadow-sm" rows="3" placeholder="Ce simptome are mașina?" />
+                            </div>
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(eroareData))
+                        {
+                            <div class="alert alert-danger mt-3 small shadow-sm">⚠️ @eroareData</div>
+                        }
+                    </div>
+                    <div class="card-footer bg-light text-center p-4">
+                        <button type="submit" class="btn btn-warning btn-lg px-5 fw-bold shadow">💾 Salvează Programarea</button>
+                    </div>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+</div>
+
+@code {
+    // Modelul de date pentru formular
+    public class AppointmentVM {
+        [Required(ErrorMessage = "Trebuie să alegi o mașină.")]
+        [Range(1, int.MaxValue, ErrorMessage = "Alege o mașină din listă.")]
+        public int CarId { get; set; }
+        public int? MechanicId { get; set; }
+        public string Description { get; set; } = "";
+        public string Status { get; set; } = "Programată";
+    }
+
+    // Variabila care lipsea anterior
+    [SupplyParameterFromForm]
+    public AppointmentVM nouaProgramare { get; set; } = new();
+    
+    private List<Car> listaMasini = new();
+    private List<Employee> listaMecanici = new();
+    private List<string> OreDisponibile = new();
+    
+    private DateTime DataSelectata { get; set; } = DateTime.Today;
+    private string OraSelectata { get; set; } = "08:00";
+    private string eroareData = "";
+
+    protected override async Task OnInitializedAsync() {
+        // Încărcăm listele din baza de date
+        listaMasini = await DbContext.Cars.Include(c => c.Client).OrderBy(c => c.LicensePlate).ToListAsync();
+        listaMecanici = await DbContext.Employees.OrderBy(e => e.LastName).ToListAsync();
+
+        // Generăm orele de lucru (07:00 - 20:00)
+        for (int i = 7; i <= 20; i++) {
+            OreDisponibile.Add($"{i:D2}:00");
+            if (i < 20) OreDisponibile.Add($"{i:D2}:30");
+        }
+
+        // LOGICA PENTRU ALOCARE AUTOMATĂ DIN AGENDA ANGAJATULUI
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        if (QueryHelpers.ParseQuery(uri.Query).TryGetValue("mecanicId", out var mecanicIdStr))
+        {
+            if (int.TryParse(mecanicIdStr, out var id))
+            {
+                nouaProgramare.MechanicId = id;
+            }
+        }
+    }
+
+    private async Task SalveazaProgramare() {
+        try {
+            var timpComplet = DateTime.ParseExact($"{DataSelectata:yyyy-MM-dd} {OraSelectata}", "yyyy-MM-dd HH:mm", null);
+
+            if (timpComplet < DateTime.Now.AddMinutes(-5)) {
+                eroareData = "Nu poți pune o programare în trecut.";
+                return;
+            }
+
+            var appt = new Appointment {
+                CarId = nouaProgramare.CarId,
+                AssignedMechanicId = nouaProgramare.MechanicId > 0 ? nouaProgramare.MechanicId : null,
+                ScheduledDate = timpComplet,
+                Description = nouaProgramare.Description,
+                Status = "Programată"
+            };
+            
+            DbContext.Appointments.Add(appt);
+            await DbContext.SaveChangesAsync();
+            Navigation.NavigateTo("/programari");
+        }
+        catch (Exception ex) {
+            eroareData = "Eroare la salvare: " + ex.Message;
+        }
+    }
+}

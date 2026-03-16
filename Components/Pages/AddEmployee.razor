@@ -1,0 +1,61 @@
+@page "/adaugare-angajat"
+@using AutoService.Data
+@using AutoService.Models
+@inject ApplicationDbContext DbContext
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow-lg border-0 rounded-4">
+                <div class="card-header bg-info text-white py-3">
+                    <h4 class="mb-0 fw-bold">➕ Adaugă Angajat Nou</h4>
+                </div>
+                <div class="card-body p-4">
+                    <EditForm Model="nouAngajat" OnValidSubmit="Salveaza">
+                        <DataAnnotationsValidator />
+                        
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Prenume</label>
+                            <InputText @bind-Value="nouAngajat.FirstName" class="form-control" />
+                            <ValidationMessage For="@(() => nouAngajat.FirstName)" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Nume</label>
+                            <InputText @bind-Value="nouAngajat.LastName" class="form-control" />
+                            <ValidationMessage For="@(() => nouAngajat.LastName)" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Specializare</label>
+                            <InputText @bind-Value="nouAngajat.Specialization" class="form-control" placeholder="ex: Mecanic, Electrician" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Telefon</label>
+                            <InputText @bind-Value="nouAngajat.PhoneNumber" class="form-control" />
+                        </div>
+
+                        <div class="d-flex gap-2 mt-4">
+                            <button type="submit" class="btn btn-info text-white fw-bold px-4">Salvează</button>
+                            <a href="/angajati" class="btn btn-outline-secondary">Anulează</a>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private Employee nouAngajat = new() { CreatedAt = DateTime.Now, IsActive = true };
+
+    private async Task Salveaza()
+    {
+        DbContext.Employees.Add(nouAngajat);
+        await DbContext.SaveChangesAsync();
+        Navigation.NavigateTo("/angajati");
+    }
+}

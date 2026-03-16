@@ -1,0 +1,23 @@
+@inherits LayoutComponentBase
+
+<div class="page">
+    <div class="sidebar shadow-lg">
+        <NavMenu />
+    </div>
+
+    <main>
+        <div class="top-row px-4 d-none d-md-flex justify-content-between align-items-center bg-white border-bottom">
+            <span class="text-muted fw-bold small text-uppercase">Sistem Gestiune Service v2026</span>
+            <div class="badge bg-light text-dark border px-3 py-2">👤 Utilizator: **Crox**</div>
+        </div>
+
+        <article class="content px-4 py-3">
+            @Body
+        </article>
+    </main>
+</div>
+
+<div id="blazor-error-ui">
+    A apărut o eroare neașteptată.
+    <a href="" class="reload">Reîncarcă</a>
+</div>

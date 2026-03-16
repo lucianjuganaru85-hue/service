@@ -1,0 +1,172 @@
+@page "/magazie"
+@using AutoService.Data
+@using AutoService.Models
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>Gestiune Magazie - Crox ERP</PageTitle>
+
+<div class="container-fluid mt-3">
+    @* ANTET COMPACT *@
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h4 class="fw-bold text-dark mb-0">📦 Gestiune Magazie</h4>
+            <p class="text-muted small mb-0">Monitorizare stocuri piese și consumabile</p>
+        </div>
+        <div class="d-flex gap-2">
+            @* Butonul de adăugare a fost eliminat conform cerinței *@
+            <a href="/" class="btn btn-sm btn-dark shadow-sm">🏠 Acasă</a>
+        </div>
+    </div>
+
+    @* FILTRU CĂUTARE *@
+    <div class="row g-2 mb-3">
+        <div class="col-md-6">
+            <div class="input-group input-group-sm shadow-sm">
+                <span class="input-group-text bg-white border-end-0">🔍</span>
+                <input type="text" class="form-control border-start-0" 
+                       placeholder="Caută după denumire, cod piesa sau categorie..." 
+                       @bind="searchTerm" @bind:event="oninput" />
+            </div>
+        </div>
+    </div>
+
+    @* TABEL STOCURI *@
+    <div class="card shadow border-0 rounded-3 overflow-hidden">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0 text-center" style="font-size: 0.85rem;">
+                <thead class="bg-dark text-white">
+                    <tr>
+                        <th class="ps-3 text-start">Denumire Produs</th>
+                        <th>Cod / SKU</th>
+                        <th>Categorie</th>
+                        <th>Stoc Actual</th>
+                        <th>U.M.</th>
+                        <th>Preț Mediu (Achiz.)</th>
+                        <th class="pe-3 text-end">Acțiuni</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (listaFiltrata == null) {
+                        <tr><td colspan="7" class="py-4 text-muted small">Se încarcă magazia...</td></tr>
+                    } else if (!listaFiltrata.Any()) {
+                        <tr><td colspan="7" class="py-4 text-muted italic small">Niciun reper găsit.</td></tr>
+                    } else {
+                        @foreach (var p in listaFiltrata) {
+                            bool eStocCritic = p.StockQuantity <= p.MinStockAlert;
+                            <tr class="@(eStocCritic ? "table-warning-light" : "")">
+                                <td class="ps-3 text-start fw-bold">@p.Name</td>
+                                <td class="text-muted small">@(string.IsNullOrEmpty(p.SKU) ? "-" : p.SKU)</td>
+                                <td>@p.Category</td>
+                                <td class="fw-bold @(eStocCritic ? "text-danger" : "text-dark")">
+                                    @p.StockQuantity
+                                    @if (eStocCritic) { <span title="Stoc sub limita minimă">⚠️</span> }
+                                </td>
+                                <td class="small">@p.UM</td>
+                                <td class="fw-bold text-success">@p.AveragePurchasePrice.ToString("N2") lei</td>
+                                <td class="pe-3 text-end">
+                                    <div class="btn-group shadow-sm">
+                                        <button class="btn btn-xs btn-outline-primary" @onclick="() => DeschideEditare(p)" title="Editează detalii">✏️</button>
+                                        <button class="btn btn-xs btn-outline-dark" @onclick="() => StergeProdus(p)" title="Elimină definitiv">🗑️</button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@* MODAL EDITARE PRODUS *@
+@if (isModalOpen && editingProduct != null)
+{
+    <div class="custom-modal-backdrop" @onclick="() => isModalOpen = false"></div>
+    <div class="custom-modal-content shadow-lg p-4 animate__animated animate__fadeInDown">
+        <h5 class="fw-bold mb-3 border-bottom pb-2 text-primary">✏️ Editare Produs: @editingProduct.Name</h5>
+        <div class="row g-2 text-start">
+            <div class="col-12">
+                <label class="small fw-bold">Denumire Produs / Piesă</label>
+                <input type="text" class="form-control form-control-sm" @bind="editingProduct.Name" />
+            </div>
+            <div class="col-6">
+                <label class="small fw-bold">Cod Piesă (SKU)</label>
+                <input type="text" class="form-control form-control-sm" @bind="editingProduct.SKU" />
+            </div>
+            <div class="col-6">
+                <label class="small fw-bold">Categorie</label>
+                <input type="text" class="form-control form-control-sm" @bind="editingProduct.Category" />
+            </div>
+            <div class="col-6">
+                <label class="small fw-bold">U.M. (buc, litri, etc)</label>
+                <input type="text" class="form-control form-control-sm" @bind="editingProduct.UM" />
+            </div>
+            <div class="col-6">
+                <label class="small fw-bold">Alertă Stoc Minim</label>
+                <input type="number" class="form-control form-control-sm" @bind="editingProduct.MinStockAlert" />
+            </div>
+            <div class="col-12 mt-2">
+                <div class="p-2 bg-light border rounded small">
+                    <span class="fw-bold">Notă:</span> Cantitățile și prețurile se actualizează automat prin documentele de recepție (NIR).
+                </div>
+            </div>
+        </div>
+        <div class="d-flex justify-content-end gap-2 mt-4">
+            <button class="btn btn-secondary btn-sm" @onclick="() => isModalOpen = false">Anulează</button>
+            <button class="btn btn-primary btn-sm fw-bold px-4" @onclick="SalveazaProdus">💾 Salvează Modificările</button>
+        </div>
+    </div>
+}
+
+<style>
+    .btn-xs { padding: 0.2rem 0.5rem; font-size: 0.75rem; }
+    .table-warning-light { background-color: rgba(255, 193, 7, 0.08) !important; }
+    .custom-modal-backdrop { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); z-index: 1000; }
+    .custom-modal-content { position: fixed; top: 15%; left: 50%; transform: translateX(-50%); width: 500px; background: white; border-radius: 15px; z-index: 1001; }
+</style>
+
+@code {
+    private List<Product>? listaProduse;
+    private string searchTerm = "";
+    private Product? editingProduct;
+    private bool isModalOpen = false;
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData() {
+        listaProduse = await DbContext.Products
+            .OrderBy(p => p.Name)
+            .ToListAsync();
+    }
+
+    private IEnumerable<Product>? listaFiltrata => 
+        string.IsNullOrWhiteSpace(searchTerm) ? listaProduse : 
+        listaProduse?.Where(p => 
+            p.Name.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) || 
+            (p.SKU?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            (p.Category?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false));
+
+    private void DeschideEditare(Product p) { 
+        editingProduct = p; 
+        isModalOpen = true; 
+    }
+
+    private async Task SalveazaProdus() {
+        await DbContext.SaveChangesAsync();
+        isModalOpen = false;
+        await LoadData();
+    }
+
+    private async Task StergeProdus(Product p) {
+        bool confirm = await JS.InvokeAsync<bool>("confirm", $"Ștergi definitiv reperul {p.Name} din nomenclator? Această acțiune nu poate fi anulată.");
+        if (confirm) {
+            DbContext.Products.Remove(p);
+            await DbContext.SaveChangesAsync();
+            await LoadData();
+        }
+    }
+}

@@ -1,0 +1,16 @@
+@using Microsoft.AspNetCore.Components.Routing
+@using Microsoft.AspNetCore.Components.Web
+
+<Router AppAssembly="typeof(Program).Assembly">
+    <Found Context="routeData">
+        <RouteView RouteData="routeData" />
+        <FocusOnNavigate RouteData="routeData" Selector="h1" />
+    </Found>
+    <NotFound>
+        <PageTitle>Eroare 404</PageTitle>
+        <div class="container mt-5 text-center">
+            <h1 class="text-danger">Eroare 404</h1>
+            <p class="lead">Ne pare rău, dar pagina pe care o cauți nu există în acest Service.</p>
+        </div>
+    </NotFound>
+</Router>

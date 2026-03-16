@@ -1,0 +1,120 @@
+@page "/editare-programare/{Id:int}"
+@using AutoService.Data
+@using AutoService.Models
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>Editare Programare - Crox ERP</PageTitle>
+
+<div class="container mt-5">
+    <h2 class="text-warning fw-bold mb-4">✏️ Editează Programarea</h2>
+
+    @if (programare == null)
+    {
+        <p>Se încarcă datele...</p>
+    }
+    else
+    {
+        <EditForm Model="programare" OnValidSubmit="SalveazaModificari" FormName="EditApptForm">
+            <DataAnnotationsValidator />
+            <div class="card shadow-lg border-0 rounded-4 p-4">
+                <div class="row g-3">
+                    <div class="col-md-12">
+                        <label class="form-label fw-bold">Mecanic Alocat</label>
+                        <InputSelect @bind-Value="programare.AssignedMechanicId" class="form-select shadow-sm">
+                            <option value="">-- Fără mecanic --</option>
+                            @foreach (var emp in listaMecanici)
+                            {
+                                <option value="@emp.Id">@emp.FirstName @emp.LastName</option>
+                            }
+                        </InputSelect>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold small">Data</label>
+                        <InputDate @bind-Value="DataEdit" class="form-control shadow-sm" min="@DateTime.Now.ToString("yyyy-MM-dd")" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold small">Ora</label>
+                        <InputSelect @bind-Value="OraEdit" class="form-select shadow-sm">
+                            @foreach (var ora in OreDisponibile)
+                            {
+                                <option value="@ora">@ora</option>
+                            }
+                        </InputSelect>
+                    </div>
+
+                    <div class="col-md-12">
+                        <label class="form-label fw-bold">Status</label>
+                        <InputSelect @bind-Value="programare.Status" class="form-select shadow-sm">
+                            <option value="Programată">Programată</option>
+                            <option value="În Lucru">În Lucru</option>
+                            <option value="Finalizată">Finalizată</option>
+                        </InputSelect>
+                    </div>
+
+                    <div class="col-md-12">
+                        <label class="form-label fw-bold">Descriere</label>
+                        <InputTextArea @bind-Value="programare.Description" class="form-control shadow-sm" rows="3" />
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrEmpty(eroareData))
+                {
+                    <div class="alert alert-danger mt-3 small shadow-sm">⚠️ @eroareData</div>
+                }
+
+                <div class="text-center mt-4">
+                    <button type="submit" class="btn btn-warning btn-lg px-5 fw-bold shadow">Actualizează</button>
+                    <a href="/programari" class="btn btn-outline-secondary btn-lg ms-2">Înapoi</a>
+                </div>
+            </div>
+        </EditForm>
+    }
+</div>
+
+@code {
+    [Parameter] public int Id { get; set; }
+    private Appointment? programare;
+    private List<Employee> listaMecanici = new();
+    private List<string> OreDisponibile = new();
+    private DateTime DataEdit;
+    private string OraEdit = "";
+    private string eroareData = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        programare = await DbContext.Appointments.FindAsync(Id);
+        if (programare != null) {
+            DataEdit = programare.ScheduledDate.Date;
+            OraEdit = programare.ScheduledDate.ToString("HH:mm");
+        }
+        
+        listaMecanici = await DbContext.Employees.OrderBy(e => e.LastName).ToListAsync();
+        
+        for (int i = 8; i <= 19; i++) {
+            OreDisponibile.Add($"{i:D2}:00");
+            OreDisponibile.Add($"{i:D2}:30");
+        }
+    }
+
+    private async Task SalveazaModificari()
+    {
+        if (programare != null)
+        {
+            var timpComplet = DateTime.ParseExact($"{DataEdit:yyyy-MM-dd} {OraEdit}", "yyyy-MM-dd HH:mm", null);
+
+            if (timpComplet < DateTime.Now.AddMinutes(-1)) {
+                eroareData = "Data selectată este în trecut.";
+                return;
+            }
+
+            programare.ScheduledDate = timpComplet;
+            await DbContext.SaveChangesAsync();
+            Navigation.NavigateTo("/programari");
+        }
+    }
+}
