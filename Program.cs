@@ -1,53 +1,53 @@
-using AutoService.Data;
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.EntityFrameworkCore;
-using System.Globalization;
-using Microsoft.AspNetCore.Localization;
+using Service.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Configurare Bază de Date (SQLite pentru portabilitate online)
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
+// 1. Configurarea Bazei de Date (SQLite)
+// Folosim o cale care să funcționeze și pe Windows-ul tău și pe serverul Azure
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=CroxService.db";
 
-// 2. Servicii esențiale
-builder.Services.AddHttpClient();
-builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseSqlite(connectionString));
 
-// 3. Activare Blazor Interactive Server
-builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
-
-// Servicii custom (Email, etc.)
-builder.Services.AddScoped<AutoService.Services.EmailService>();
+// 2. Adăugarea serviciilor pentru Blazor
+builder.Services.AddRazorPages();
+builder.Services.AddServerSideBlazor();
 
 var app = builder.Build();
 
-// 4. Configurare Limba Română (Format zz.ll.aaaa și luni ca primă zi)
-var supportedCultures = new[] { new CultureInfo("ro-RO") };
-app.UseRequestLocalization(new RequestLocalizationOptions
+// 3. LOGICA DE ACTIVARE A BAZEI DE DATE (Critic pentru Azure)
+// Acest bloc verifică la pornire dacă baza de date există și o creează dacă lipsește
+using (var scope = app.Services.CreateScope())
 {
-    DefaultRequestCulture = new RequestCulture("ro-RO"),
-    SupportedCultures = supportedCultures,
-    SupportedUICultures = supportedCultures
-});
-
-// Configurare mediu
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    var services = scope.ServiceProvider;
+    try
+    {
+        var context = services.GetRequiredService<AppDbContext>();
+        // EnsureCreated se asigură că fișierul .db și tabelele sunt făcute instant
+        context.Database.EnsureCreated();
+    }
+    catch (Exception ex)
+    {
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "A apărut o eroare la crearea bazei de date.");
+    }
 }
 
+// 4. Configurarea conductei HTTP
+if (!app.Environment.IsDevelopment())
+{
+    app.UseExceptionHandler("/Error");
+    app.UseHsts();
+}
+
+app.UseHttpsRedirection();
 app.UseStaticFiles();
-app.UseAntiforgery();
-app.UseAuthorization();
+app.UseRouting();
 
-app.MapControllers();
-
-// Mapare componente Blazor (Asigură-te că namespace-ul corespunde proiectului tău)
-app.MapRazorComponents<Service.Components.App>()
-    .AddInteractiveServerRenderMode();
+app.MapBlazorHub();
+app.MapFallbackToPage("/_Host");
 
 app.Run();
