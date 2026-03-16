@@ -10,7 +10,7 @@ namespace AutoService.Data
         {
         }
 
-        // Punem toate tabelele pe care aplicația ta le caută (numele în engleză conform erorilor)
+        // Tabelele tale oficiale, exact cum le cer paginile tale Razor
         public DbSet<Client> Clients { get; set; }
         public DbSet<Car> Cars { get; set; }
         public DbSet<Appointment> Appointments { get; set; }
@@ -21,14 +21,5 @@ namespace AutoService.Data
         public DbSet<StandardService> StandardServices { get; set; }
         public DbSet<Product> Products { get; set; }
         public DbSet<ServiceItem> ServiceItems { get; set; }
-    }
-}
-
-// Această punte este necesară pentru ca Program.cs să funcționeze corect
-namespace Service.Data
-{
-    public class ApplicationDbContext : AutoService.Data.ApplicationDbContext
-    {
-        public ApplicationDbContext(DbContextOptions<AutoService.Data.ApplicationDbContext> options) : base(options) { }
     }
 }

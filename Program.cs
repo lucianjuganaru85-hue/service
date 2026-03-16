@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.EntityFrameworkCore;
-using Service.Data;
+using AutoService.Data;
 using System.Globalization;
 using Microsoft.AspNetCore.Localization;
 using System.Runtime.InteropServices;
@@ -9,21 +9,23 @@ using System.IO;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// CONFIGURARE CALENDAR ROMÂNĂ (Luni, zz.ll.aaaa)
+// 1. CONFIGURARE CALENDAR ROMÂNĂ (Luni, zz.ll.aaaa)
 var cultureInfo = new CultureInfo("ro-RO");
 cultureInfo.DateTimeFormat.ShortDatePattern = "dd.MM.yyyy";
 cultureInfo.DateTimeFormat.FirstDayOfWeek = DayOfWeek.Monday;
 CultureInfo.DefaultThreadCurrentCulture = cultureInfo;
 CultureInfo.DefaultThreadCurrentUICulture = cultureInfo;
 
-// DB PATH (Azure & Local)
+// 2. CALEA BAZEI DE DATE (Azure & Local)
 string dbPath;
 if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && Environment.GetEnvironmentVariable("WEBSITE_SITE_NAME") != null)
 {
-    dbPath = Path.Combine(@"C:\home\LogFiles", "CroxService.db");
+    // Pe Azure scriem într-un loc cu permisiuni garantate
+    dbPath = @"C:\home\CroxService.db";
 }
 else
 {
+    // Pe calculatorul tău (Desktop)
     dbPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "CroxService.db");
 }
 
@@ -35,29 +37,24 @@ builder.Services.AddServerSideBlazor();
 
 var app = builder.Build();
 
-// AUTO-CREATE DATABASE
+// 3. CREARE AUTOMATĂ BAZĂ DE DATE
 using (var scope = app.Services.CreateScope())
 {
-    try
-    {
+    try {
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         context.Database.EnsureCreated();
-    }
-    catch (Exception ex)
-    {
+    } catch (Exception ex) {
         Console.WriteLine($"[DB ERROR] {ex.Message}");
     }
 }
 
-app.UseRequestLocalization(new RequestLocalizationOptions
-{
+app.UseRequestLocalization(new RequestLocalizationOptions {
     DefaultRequestCulture = new RequestCulture(cultureInfo),
     SupportedCultures = new[] { cultureInfo },
     SupportedUICultures = new[] { cultureInfo }
 });
 
-if (!app.Environment.IsDevelopment())
-{
+if (!app.Environment.IsDevelopment()) {
     app.UseExceptionHandler("/Error");
     app.UseHsts();
 }
